@@ -1054,7 +1054,7 @@ def clear_line2D(Figure, Line2D, Axes, redraw=True):
 seconds_to_days = 1/(3600*24)
 
 # Read prewhitened frequencies after frequency analysis for all TICs
-pw_all = pd.read_csv('/lhome/stefano/Documents/work/pattern_detection/lc_stitched_11+sec_ap9+pix/freqs_comb_candicates_analysed.csv')
+pw_all = pd.read_csv('pw/freqs_comb_candicates_analysed.csv')
 pw_all_groups = pw_all.groupby('tic')
 
 # Pick a TIC
@@ -1064,7 +1064,7 @@ TIC = 349832567
 pw = pw_all_groups.get_group(TIC).reset_index(drop=True)
 
 # Read L-S periodogram
-pg_NamePatterm = '/lhome/stefano/Documents/work/pattern_detection/lc_stitched_11+sec_ap9+pix/LS_periodogram/pg_tess{TIC}_corrected_stitched.csv'
+pg_NamePatterm = 'pg/pg_tess{TIC}_corrected_stitched.csv'
 pg = pd.read_csv(pg_NamePatterm.format(TIC=TIC))
 
 # Add columns
