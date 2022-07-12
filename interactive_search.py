@@ -6,7 +6,8 @@ from matplotlib.widgets import Slider
 from scipy.optimize import curve_fit
 from scipy.optimize import minimize
 from scipy import optimize
-          
+from sys import platform
+        
 import tkinter as tk
 from tkinter import simpledialog
 
@@ -386,7 +387,7 @@ def update_selection(event):
     global scatter1, scatter2, scatter3, df, df_full, dp, plotted_lines, ax_dp, ax_echelle, ax_p
     
     # Only continue if `control` is the last keystroke
-    if not ivar['keystroke']=='control':
+    if not ivar['keystroke']==keystroke_i1:
         return
     
     # Only continue after a left click on the axis ax_p or ax_echelle
@@ -484,7 +485,7 @@ def update_echelle_comb(keep_xylim=False):
 def read_button(event):
     
     # Only continue if the last keystroke is `control`
-    if not ivar['keystroke']=='control':
+    if not ivar['keystroke']==keystroke_i1:
         return
     
     # Periodogram
@@ -983,7 +984,7 @@ def onselect(vmin, vmax):
     global df, df_full, dp, scatter1, scatter2, scatter3
     
     # If interactive is on
-    if ivar['keystroke'] == 'shift+control' and vmin != vmax:
+    if ivar['keystroke'] == keystroke_i2 and vmin != vmax:
         
         if df.query('period > @vmin and period < @vmax').period.size > 0:
 
@@ -1087,6 +1088,8 @@ df = df_full.copy()
 ivar = {}
 ivar['keystroke']        = None
 ivar['pressed_button']   = None
+keystroke_i1 = 'control' if platform == 'linux' else 'i'
+keystroke_i2 = 'shift+control' if platform == 'linux' else 'I'
 
 plotted_lines = {}
 
