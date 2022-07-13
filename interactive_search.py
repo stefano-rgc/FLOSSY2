@@ -88,11 +88,21 @@ from numba import jit, njit, float32, int32
 ##############################################################################
 
 def period_for_dP_plot(periods, mode='middle'):
-    '''
-    Purpose:
-        Return the array of periods with one less element to enable the plot
+    """Return the array of periods with one less element to enable the plot
         with its period differences 
-    '''
+
+    Args:
+        periods (_type_): _description_
+        mode (str, optional): _description_. Defaults to 'middle'.
+
+    Raises:
+        ValueError: _description_
+        ValueError: _description_
+        ValueError: _description_
+
+    Returns:
+        _type_: _description_
+    """
 
     if mode == 'middle':
         return (periods[1:]+periods[:-1])/2.
