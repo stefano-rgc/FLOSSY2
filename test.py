@@ -29,12 +29,10 @@ class Interactivity:
 
     def draw_line(self, startx, starty):
         xy = plt.ginput(1)
-        print('values xy', xy)
         x = [startx, xy[0][0]]
         y = [starty, xy[0][1]]
-        print('value x', x, 'value y', y)
         self.ax.plot(x, y, picker=True, pickradius=5, color='blue')
-        self.ax.figure.canvas.draw()
+        self.ax.figure.canvas.draw_idle()
 
     def onclick(self, event):
         """
@@ -46,10 +44,10 @@ class Interactivity:
         higher number is used to get multiple clicks to define a polyline)
         """
         print('onclick')
-        # if event.dblclick:
-        if event.button == 3:
-            print('event location', event.xdata, event.ydata)
-            self.draw_line(event.xdata, event.ydata)
+        if event.dblclick:
+            if event.button == 1:
+                print('event location', event.xdata, event.ydata)
+                self.draw_line(event.xdata, event.ydata)
 
 
     def onpick(self, event):
@@ -60,8 +58,10 @@ class Interactivity:
         """
         print('onpick')
         this_artist = event.artist
+        print('this_artist', this_artist)
         # the picked object is available as event.artist
         self.ax.picked_object = this_artist
+        print('picked_object', self.ax.picked_object)
 
     def on_key(self, event):
         """
@@ -73,7 +73,7 @@ class Interactivity:
         if event.key == 'delete' and self.ax.picked_object:
             self.ax.picked_object.remove()
             self.ax.picked_object = None
-            self.ax.figure.canvas.draw()
+            self.ax.figure.canvas.draw_idle()
             
 
 # Basic plot to test the functionality
