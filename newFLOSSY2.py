@@ -588,7 +588,7 @@ def read_button(event):
             comb_params['Sigma'] = Sigma
 
     # Correlation plot dP0 and Sigma
-    if event.inaxes == ax_res_dP0Sigma:
+    if event.inaxes == ax_dP0Sigma:
         # Set dP0 and Sigma
         if event.button == 1:
             slider_dP0.set_val(event.xdata)
@@ -597,7 +597,7 @@ def read_button(event):
             comb_params['Sigma'] = event.ydata
 
     # Correlation plot P0 and dP0
-    if event.inaxes == ax_res_P0dP0:
+    if event.inaxes == ax_P0dP0:
         # Set P0 and dP0
         if event.button == 1:
             slider_P0.set_val(event.xdata)
@@ -606,7 +606,7 @@ def read_button(event):
             comb_params['dP0'] = event.ydata
 
     # Correlation plot Sigma and P0
-    if event.inaxes == ax_res_SigmaP0:
+    if event.inaxes == ax_SigmaP0:
         # Set Sigma and P0
         if event.button == 1:
             slider_Sigma.set_val(event.xdata)
@@ -615,21 +615,21 @@ def read_button(event):
             comb_params['P0'] = event.ydata
 
     # Plot P0
-    if event.inaxes == ax_res_P0:
+    if event.inaxes == ax_P0:
         # Set P0
         if event.button == 1:
             slider_P0.set_val(event.xdata)
             comb_params['P0'] = event.xdata
 
     # Plot dP0
-    if event.inaxes == ax_res_dP0:
+    if event.inaxes == ax_dP0:
         # Set dP0
         if event.button == 1:
             slider_dP0.set_val(event.xdata)
             comb_params['dP0'] = event.xdata
 
     # Plot Sigma
-    if event.inaxes == ax_res_Sigma:
+    if event.inaxes == ax_Sigma:
         # Set Sigma
         if event.button == 1:
             slider_Sigma.set_val(event.xdata)
@@ -853,8 +853,8 @@ def explore_results2(event):
     cmap = plt.get_cmap('terrain')
     norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
 
-    ax = ax_res_P0dP0
-    ax_cbar = ax_res_P0dP0_cbar
+    ax = ax_P0dP0
+    ax_cbar = ax_P0dP0_cbar
     ax.clear()
     ax_cbar.clear()
 
@@ -864,22 +864,17 @@ def explore_results2(event):
     cf = ax.contourf(X.T, Y.T, Z, levels=levels, cmap=cmap)
     #         cbar_axes['P0dP0'].clear()
     cbar = plt.colorbar(cf, ax=ax, cax=ax_cbar, orientation='horizontal')
-    ax_cbar.xaxis.tick_top()
-    ax_cbar.xaxis.set_label_position('top')
-    ax_cbar.set_xlabel(f'log(S)')
 
     # Plot bes-fit results
     (color, ls, lw) = ('r', 'solid', 0.5)
     ax.axvline(comb_params['P0'],  color=color, ls=ls, lw=lw)
     ax.axhline(comb_params['dP0'], color=color, ls=ls, lw=lw)
 
-    ax.set_xlabel('$P_0$')
-    ax.set_ylabel('$\Delta P_0$')
 
     xlim = ax.get_xlim()
 
     # Plot P0
-    ax = ax_res_P0
+    ax = ax_P0
     ax.clear()
 
     ax.plot(P0_grid,
@@ -891,8 +886,7 @@ def explore_results2(event):
                comb_params['P0']+comb_params['e_P0'],
                color='red', ls='dashed', lw=1, alpha=0.5)
 
-    ax.set_xlabel('$P_0$')
-    ax.set_ylabel('min $S$')
+
     ax.set_xlim(xlim)
 
     # Plot dP0 vs Sigma <----------------------
@@ -903,8 +897,8 @@ def explore_results2(event):
     cmap = plt.get_cmap('terrain')
     norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
 
-    ax = ax_res_dP0Sigma
-    ax_cbar = ax_res_dP0Sigma_cbar
+    ax = ax_dP0Sigma
+    ax_cbar = ax_dP0Sigma_cbar
     ax.clear()
     ax_cbar.clear()
 
@@ -914,22 +908,17 @@ def explore_results2(event):
     cf = ax.contourf(X.T, Y.T, Z, levels=levels, cmap=cmap)
     #         cbar_axes['P0dP0'].clear()
     cbar = plt.colorbar(cf, ax=ax, cax=ax_cbar, orientation='horizontal')
-    ax_cbar.xaxis.tick_top()
-    ax_cbar.xaxis.set_label_position('top')
-    ax_cbar.set_xlabel(f'log(S)')
 
     # Plot bes-fit results
     (color, ls, lw) = ('r', 'solid', 0.5)
     ax.axvline(comb_params['dP0'],  color=color, ls=ls, lw=lw)
     ax.axhline(comb_params['Sigma'], color=color, ls=ls, lw=lw)
 
-    ax.set_xlabel('$\Delta P_0$')
-    ax.set_ylabel('$\Sigma$')
 
     xlim = ax.get_xlim()
 
     # Plot dP0
-    ax = ax_res_dP0
+    ax = ax_dP0
     ax.clear()
 
     ax.plot(dP0_grid,
@@ -941,8 +930,7 @@ def explore_results2(event):
                comb_params['dP0']+comb_params['e_dP0'],
                color='r', ls='dashed', lw=1, alpha=0.5)
 
-    ax.set_xlabel('$\Delta P_0$')
-    ax.set_ylabel('min $S$')
+
     ax.set_xlim(xlim)
 
     # Plot Sigma vs P0 <-----------------------------------------
@@ -953,8 +941,8 @@ def explore_results2(event):
     cmap = plt.get_cmap('terrain')
     norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
 
-    ax = ax_res_SigmaP0
-    ax_cbar = ax_res_SigmaP0_cbar
+    ax = ax_SigmaP0
+    ax_cbar = ax_SigmaP0_cbar
     ax.clear()
     ax_cbar.clear()
 
@@ -964,22 +952,17 @@ def explore_results2(event):
     cf = ax.contourf(X, Y, Z, levels=levels, cmap=cmap)
     #         cbar_axes['P0dP0'].clear()
     cbar = plt.colorbar(cf, ax=ax, cax=ax_cbar, orientation='horizontal')
-    ax_cbar.xaxis.tick_top()
-    ax_cbar.xaxis.set_label_position('top')
-    ax_cbar.set_xlabel(f'log(S)')
 
     # Plot bes-fit results
     (color, ls, lw) = ('r', 'solid', 0.5)
     ax.axvline(comb_params['Sigma'],  color=color, ls=ls, lw=lw)
     ax.axhline(comb_params['P0'], color=color, ls=ls, lw=lw)
 
-    ax.set_xlabel('$\Sigma$')
-    ax.set_ylabel('$P_0$')
 
     xlim = ax.get_xlim()
 
     # Plot Sigma
-    ax = ax_res_Sigma
+    ax = ax_Sigma
     ax.clear()
 
     ax.plot(Sigma_grid,
@@ -991,8 +974,6 @@ def explore_results2(event):
                comb_params['Sigma']+comb_params['e_Sigma'],
                color='r', ls='dashed', lw=1, alpha=0.5)
 
-    ax.set_xlabel('$\Sigma$')
-    ax.set_ylabel('min $S$')
     ax.set_xlim(xlim)
 
 ##############################################################################
@@ -1198,17 +1179,43 @@ class Interactivity:
         #     self.ax.figure.canvas.draw_idle()
         pass
 
-
+# @u.quantity_input
+def freq2period_resolution(freq, freq_resolution):
+    period = 1/freq
+    period_resolution = freq_resolution*period**2
+    return period, period_resolution
+    
 class UserData:
-    """Read user data and format it if needed"""
-    def __init__(self, userInput):
-        # Transfer user inputs to class UserData
-        self.TIC = int(userInput.tic)
-        self.pw = userInput.pw
-        self.pg = userInput.pg
+    """
+    Read user data and format it if needed.
+    All time units (also frequnecy) will be expressed in days.
+    Amplitudes will be expressed in ppt.
+    """
+    
+    def __init__(self):
+    
+        import inputs
+        class UserInput:
+            """Class where to store user inputs"""
+            class PW:
+                """Collect prewhitened info"""
+                file = inputs.pw_file
+                col_names = inputs.pw_col_names
+                units = inputs.pw_units
+            class PG:
+                """Collect periodogram info"""
+                file = inputs.pg_file
+                col_names = inputs.pg_col_names
+                units = inputs.pg_units
+            self.tic = int(inputs.TIC)
+            self.pw = PW()
+            self.pg = PG()
+        
         # Read prewhitening data
+        self._valid_types = (u.Unit, u.core.IrreducibleUnit, u.core.CompositeUnit, u.quantity.Quantity)
         self.read_pw()
         self.read_pg()
+        self.read_freq_resolution()
         
     def read_pw(self):
         """Read and format prewhitening data"""
@@ -1216,10 +1223,26 @@ class UserData:
         self.pw.data = pd.read_csv(self.pw.file, usecols=col_name_user)
         # Overwrite user column names with hadie ones
         col_name_new = ['freq', 'e_freq', 'ampl'] # * The order must follow the one in the input file
-        col_name_map = {col_name_user[i]: col_name_new[i] for i in range(len(col_name_user))}
-        self.pw.data.rename(columns=col_name_map, inplace=True)
+        col_name_map_user2new = {col_name_user[i]: col_name_new[i] for i in range(len(col_name_user))}
+        self.pw.data.rename(columns=col_name_map_user2new, inplace=True)
         for k_new, k_old in zip(col_name_new, self.pw.units):
             self.pw.units[k_new] = self.pw.units.pop(k_old)
+        # Validate units
+        col_name_map_new2user = {v: k for k, v in col_name_map_user2new.items()}
+        for k,v in self.pw.units.items():
+            if not isinstance(v,self._valid_types):
+                raise ValueError(f'Units of {col_name_map_new2user[k]} in the pw are not recognized. It must be an astropy units or quantities.')
+        # Convert all units to astropy quantities
+        for k,v in self.pw.units.items():
+            if not isinstance(v,u.quantity.Quantity):
+                self.pw.units[k] *= 1
+        # Convert units
+        target_units = [1/u.day, 1/u.day, 1e-3*u.dimensionless_unscaled] # * The order follows the above variable col_name_new
+        self.pw.convertion_factor = {}
+        for name, unit in zip(col_name_new, target_units):
+            _ = self.pw.units[name]
+            self.pw.convertion_factor[name] = _.to(unit).value
+            self.pw.data[name] *= self.pw.convertion_factor[name]
         # Add columns
         self.pw.data['period'] = 1/self.pw.data.freq
         self.pw.data['e_period'] = self.pw.data.e_freq*self.pw.data.period**2
@@ -1237,10 +1260,26 @@ class UserData:
         self.pg.data = pd.read_csv(self.pg.file, usecols=col_name_user)
         # Overwrite user column names with hadie ones
         col_name_new = ['freq', 'ampl'] # * The order must follow the one in the input file
-        col_name_map = {col_name_user[i]: col_name_new[i] for i in range(len(col_name_user))}
-        self.pg.data.rename(columns=col_name_map, inplace=True)
+        col_name_map_user2new = {col_name_user[i]: col_name_new[i] for i in range(len(col_name_user))}
+        self.pg.data.rename(columns=col_name_map_user2new, inplace=True)
         for k_new, k_old in zip(col_name_new, self.pg.units):
             self.pg.units[k_new] = self.pg.units.pop(k_old)
+        # Validate units
+        col_name_map_new2user = {v: k for k, v in col_name_map_user2new.items()}
+        for k,v in self.pg.units.items():
+            if not isinstance(v,self._valid_types):
+                raise ValueError(f'Units of {col_name_map_new2user[k]} in the pg are not recognized. It must be an astropy units or quantities.')
+        # Convert all units to astropy quantities
+        for k,v in self.pg.units.items():
+            if not isinstance(v,u.quantity.Quantity):
+                self.pg.units[k] *= 1
+        # Convert units
+        target_units = [1/u.day, 1e-3*u.dimensionless_unscaled] # * The order follows the above variable col_name_new
+        self.pg.convertion_factor = {}
+        for name, unit in zip(col_name_new, target_units):
+            _ = self.pg.units[name]
+            self.pg.convertion_factor[name] = _.to(unit).value
+            self.pg.data[name] *= self.pg.convertion_factor[name]
         # Add columns
         self.pg.data['period'] = 1/self.pg.data.freq
         self.pg.units['period'] = 1/self.pg.units['freq']
@@ -1248,194 +1287,277 @@ class UserData:
         self.pg.data.sort_values(by=['period'], inplace=True)
         self.pg.data.reset_index(drop=True, inplace=True)
 
+    def read_freq_resolution(self):
+        """Read and format frequency resolution"""
+        import inputs
+        self.freq_resolution = inputs.frequency_resolution
+        # Validate units
+        if not isinstance(self.freq_resolution,self._valid_types):
+            raise ValueError(f'Units of frequency resolution are not recognized. It must be an astropy units or quantities.')
+        # Convert all units to astropy quantities
+        if not isinstance(self.freq_resolution,u.quantity.Quantity):
+            self.freq_resolution *= 1
+        # Convert units
+        self.freq_resolution = self.freq_resolution.to(1/u.day).value
+
+class LinearPSP:
+    def __init__(self,P0,dP0,Sigma=0,nr=5,nl=5) -> None:
+        self.P0 = P0
+        self.dP0 = dP0
+        self.Sigma = Sigma
+        self.nr = nr
+        self.nl = nl
+        self.P, self.dP = pattern_period(P0,dP0,Sigma,nr,nl)
+        self.goodnesFit = GoodnesFit()
+
+class GoodnesFit:
+    match = np.array([])
+    e_P0 = 0
+    e_dP0 = 0
+    e_Sigma = 0
+    mismatch = -1
+    residuals = -1
+    opt = None
 
 class IPlot:
     """Class to handle the interactive plot"""
-    def __init__(self, pw):
+
+    def __init__(self, pw, pg, freq_resolution):
         self.pw = pw.copy() # TODO: Check if copy is not necessary
+        self.pg = pg
+        self.freq_resolution = freq_resolution
         self.key = None
+        
+        # Generate fig, its axes
+        self.layout()
+        self.format()
+        
+        # Make plots
+        self.plot_p()
+        self.plot_pg()
+        
+        
+        P0 = pw.query('ampl == ampl.max()').period.values.item()
+        dP0 = np.median(np.diff(pw.period.values))
+        self.linearPSP = LinearPSP(P0,dP0)
         
         # self.fig = plt.gcf() if fig is None else fig
         # self.ax = self.fig.gca()
         self.connections = ()
 
-    def __enter__(self):
-        self.connect()
-        return self
+    # def __enter__(self):
+    #     self.connect()
+    #     return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.disconnect()
+    # def __exit__(self, exc_type, exc_val, exc_tb):
+    #     self.disconnect()
 
-    def connect(self):
-        """ Install the event handlers for the plot. """
-        self.connections = (
-            self.fig.canvas.mpl_connect('button_press_event', self.onclick),
-            self.fig.canvas.mpl_connect('pick_event', self.onpick),
-            self.fig.canvas.mpl_connect('key_press_event', self.onkey),
-        )
+    # def connect(self):
+    #     """ Install the event handlers for the plot. """
+    #     self.connections = (
+    #         self.fig.canvas.mpl_connect('button_press_event', self.onclick),
+    #         self.fig.canvas.mpl_connect('pick_event', self.onpick),
+    #         self.fig.canvas.mpl_connect('key_press_event', self.onkey),
+    #     )
 
-    def disconnect(self):
-        """ Uninstall the event handlers for the plot. """
-        for connection in self.connections:
-            self.fig.canvas.mpl_disconnect(connection)
+    # # def disconnect(self):
+    #     """ Uninstall the event handlers for the plot. """
+    #     for connection in self.connections:
+    #         self.fig.canvas.mpl_disconnect(connection)
 
-    def draw_line(self, startx, starty):
-        # xy = plt.ginput(1)
-        # x = [startx, xy[0][0]]
-        # y = [starty, xy[0][1]]
-        # self.ax.plot(x, y, picker=True, pickradius=5, color='blue')
-        # self.ax.figure.canvas.draw_idle()
-        pass
+    # def draw_line(self, startx, starty):
+    #     # xy = plt.ginput(1)
+    #     # x = [startx, xy[0][0]]
+    #     # y = [starty, xy[0][1]]
+    #     # self.ax.plot(x, y, picker=True, pickradius=5, color='blue')
+    #     # self.ax.figure.canvas.draw_idle()
+    #     pass
     
 
-    def onclick(self, event):
-        """
-        This implements click functionality. If it's a double click do
-        something, else ignore.
-        Once in the double click block, if its a left click, wait for a further
-        click and draw a line between the double click co-ordinates and that
-        click (using ginput(1) - the 1 means wait for one mouse input - a
-        higher number is used to get multiple clicks to define a polyline)
-        """
-        print('onclick')
-        # if event.dblclick:
-        #     if event.button == 1:
-        #         self.draw_line(event.xdata, event.ydata)
+    # def onclick(self, event):
+    #     """
+    #     This implements click functionality. If it's a double click do
+    #     something, else ignore.
+    #     Once in the double click block, if its a left click, wait for a further
+    #     click and draw a line between the double click co-ordinates and that
+    #     click (using ginput(1) - the 1 means wait for one mouse input - a
+    #     higher number is used to get multiple clicks to define a polyline)
+    #     """
+    #     print('onclick')
+    #     # if event.dblclick:
+    #     #     if event.button == 1:
+    #     #         self.draw_line(event.xdata, event.ydata)
 
 
-    def onpick(self, event):
-        """
-        Handles the pick event - if an object has been picked, store a
-        reference to it.  We do this by simply adding a reference to it
-        named 'picked_object' to the axes object.
-        """
-        print('onpick')
-        # this_artist = event.artist
-        # # the picked object is available as event.artist
-        # self.ax.picked_object = this_artist
-        pass
+    # def onpick(self, event):
+    #     """
+    #     Handles the pick event - if an object has been picked, store a
+    #     reference to it.  We do this by simply adding a reference to it
+    #     named 'picked_object' to the axes object.
+    #     """
+    #     print('onpick')
+    #     # this_artist = event.artist
+    #     # # the picked object is available as event.artist
+    #     # self.ax.picked_object = this_artist
+    #     pass
 
-    def onkey(self, event):
-        """
-        Function to be bound to the key press event
-        If the key pressed is delete and there is a picked object,
-        remove that object from the canvas
-        """
-        print('onkey: ', event.key)
-        self.key = event.key
-        # if event.key == 'delete' and self.ax.picked_object:
-        #     self.ax.picked_object.remove()
-        #     self.ax.picked_object = None
-        #     self.ax.figure.canvas.draw_idle()
-        pass
+    # def onkey(self, event):
+    #     """
+    #     Function to be bound to the key press event
+    #     If the key pressed is delete and there is a picked object,
+    #     remove that object from the canvas
+    #     """
+    #     print('onkey: ', event.key)
+    #     self.key = event.key
+    #     # if event.key == 'delete' and self.ax.picked_object:
+    #     #     self.ax.picked_object.remove()
+    #     #     self.ax.picked_object = None
+    #     #     self.ax.figure.canvas.draw_idle()
+    #     pass
 
+    def format(self):
+        """Format the layout by adding label and tweaks to the axes"""
+        # Link x-axis for the periodogram and period-spacing pattern
+        self.axs.pg.get_shared_x_axes().join(self.axs.dp, self.axs.pg)
+        self.axs.pg.get_shared_x_axes().join(self.axs.p, self.axs.pg)
+        
+        # Labels
+        self.axs.pg.set_ylabel('amplitude')
+        self.axs.dp.set_xlabel('period (days)')
+        self.axs.dp.set_ylabel('$\Delta P$ (days)')
+        self.axs.echelle.set_ylabel('period (days)')
+        dp = np.median(np.diff(self.pw.period.values))
+        self.axs.echelle.set_xlabel(f'period mod {dp:.5f} (days)')
+        self.axs.P0dP0.set_xlabel('$P_0$')
+        self.axs.P0dP0.set_ylabel('$\Delta P_0$')
+        self.axs.P0.set_xlabel('$P_0$')
+        self.axs.P0.set_ylabel('min $S$')
+        self.axs.dP0Sigma.set_xlabel('$\Delta P_0$')
+        self.axs.dP0Sigma.set_ylabel('$\Sigma$')
+        self.axs.dP0.set_xlabel('$\Delta P_0$')
+        self.axs.dP0.set_ylabel('min $S$')       
+        self.axs.SigmaP0.set_xlabel('$\Sigma$')
+        self.axs.SigmaP0.set_ylabel('$P_0$')
+        self.axs.Sigma.set_xlabel('$\Sigma$')
+        self.axs.Sigma.set_ylabel('min $S$')
+
+        # Visibility
+        self.axs.buttons.axis('off')
+        self.axs.p.axis('off')
+        self.axs.pg.get_xaxis().set_visible(False)
+
+        # Color bars
+        self.axs.P0dP0_cbar.xaxis.tick_top()
+        self.axs.P0dP0_cbar.xaxis.set_label_position('top')
+        self.axs.P0dP0_cbar.set_xlabel(f'log(S)')
+        self.axs.dP0Sigma_cbar.xaxis.tick_top()
+        self.axs.dP0Sigma_cbar.xaxis.set_label_position('top')
+        self.axs.dP0Sigma_cbar.set_xlabel(f'log(S)')
+        self.axs.SigmaP0_cbar.xaxis.tick_top()
+        self.axs.SigmaP0_cbar.xaxis.set_label_position('top')
+        self.axs.SigmaP0_cbar.set_xlabel(f'log(S)')
+        
+        # Ranges
+        self.axs.p.set_ylim(0, 1)
+        
+    def layout(self):
+        """Initizlize figure and axes as attributes"""
+        class Axs:
+            pass
+        fig = plt.figure(figsize=(18, 16))
+        axs = Axs()
+
+        # Create axis grid
+        main5Rows = fig.add_gridspec(5, 1, height_ratios=[1.0, 0.5, 0.5, 0.2, 0.5], hspace=0.0)
+
+        # Row 0: Period indicator on top of pg (P), pg, dP, echelle 
+        mainRow0_main2Cols = main5Rows[0].subgridspec(1, 2, width_ratios=[3, 1.2], wspace=0.2)
+        mainRow0_mainCol0_main3Rows = mainRow0_main2Cols[0].subgridspec(3, 1, height_ratios=[0.1, 1.0, 1.0], hspace=0.0)
+        mainRow0_mainCol1_main3Rows = mainRow0_main2Cols[1].subgridspec(3, 1, height_ratios=[0.1, 1.0, 1.0], hspace=0.0)
+        axs.p = fig.add_subplot(mainRow0_mainCol0_main3Rows[0])
+        axs.pg = fig.add_subplot(mainRow0_mainCol0_main3Rows[1])
+        axs.dp = fig.add_subplot(mainRow0_mainCol0_main3Rows[2])
+        axs.echelle = fig.add_subplot(mainRow0_mainCol1_main3Rows[1:])
+        
+        # Row 1: Buttons
+        axs.buttons = fig.add_subplot(main5Rows[1])
+
+        # Row 2: Landscape with color bat at the top
+        mainRow2_main3Cols = main5Rows[2].subgridspec(1, 3, width_ratios=[1, 1, 1], wspace=0.3)
+        # Accomodate space for landscape and color bar at the top
+        mainRow2_mainCol0_main2Rows = mainRow2_main3Cols[0].subgridspec(2, 1, height_ratios=[0.1, 1], hspace=0.1)
+        mainRow2_mainCol1_main2Rows = mainRow2_main3Cols[1].subgridspec(2, 1, height_ratios=[0.1, 1], hspace=0.1)
+        mainRow2_mainCol2_main2Rows = mainRow2_main3Cols[2].subgridspec(2, 1, height_ratios=[0.1, 1], hspace=0.1)
+        # Create axes for landscape and color bar
+        axs.P0dP0 = fig.add_subplot(mainRow2_mainCol0_main2Rows[1])
+        axs.dP0Sigma = fig.add_subplot(mainRow2_mainCol1_main2Rows[1])
+        axs.SigmaP0 = fig.add_subplot(mainRow2_mainCol2_main2Rows[1])
+        axs.P0dP0_cbar = fig.add_subplot(mainRow2_mainCol0_main2Rows[0])
+        axs.dP0Sigma_cbar = fig.add_subplot(mainRow2_mainCol1_main2Rows[0])
+        axs.SigmaP0_cbar = fig.add_subplot(mainRow2_mainCol2_main2Rows[0])
+        
+        # Row 3: Blank space used as spacer
+        
+        # Row 4: PDF
+        mainRow4_main3Cols = main5Rows[4].subgridspec(1, 3, width_ratios=[1, 1, 1], wspace=0.3)
+        axs.P0 = fig.add_subplot(mainRow4_main3Cols[0])
+        axs.dP0 = fig.add_subplot(mainRow4_main3Cols[1])
+        axs.Sigma = fig.add_subplot(mainRow4_main3Cols[2])
+        
+        # Create attributes
+        self.fig = fig
+        self.axs = axs
+        
+    def plot_p(self):
+        for selection,color in zip([0,1],['lightgrey','k']):
+            x = self.pw.query('selection==@selection').period.values
+            y = np.repeat(0.2, x.size)
+            self.axs.p.plot(x, y, color=color, marker=7, alpha=1, zorder=2, picker=5, ls='None')
+        
+        # Redraw
+        # self.fig.canvas.draw_idle()
+
+    def plot_pg(self):
+        # Plot the periodogram of the light curve
+        x = self.pg.period
+        y = self.pg.ampl
+        self.axs.pg.plot(x, y, lw=1, color='k', zorder=3)
+        # Plotted range
+        pmin = self.pg.period.min()
+        pmax = self.pg.period.max()
+        _, pmin_freq_resolution = freq2period_resolution(pmin, self.freq_resolution)
+        _, pmax_freq_resolution = freq2period_resolution(pmax, self.freq_resolution)
+        xlim1 = self.pw.period.min()-pmin_freq_resolution
+        xlim2 = self.pw.period.max()+pmax_freq_resolution
+        self.axs.pg.set_xlim(xlim1, xlim2)
+
+
+
+    # Key to enable interactive mode: all
+    keystroke_i1 = 'control' if platform == 'linux' else 'i'
+    # Key to enable interactive mode: spanning
+    keystroke_i2 = 'shift+control' if platform == 'linux' else 'I'
+    
+    plotted_lines = {}
+    selection = {}
+
+    
+    
 if __name__ == '__main__':
 
     # Read user inputs
-    from inputs import UserInput
-    userData = UserData(UserInput())
+    userData = UserData()
+    
+    # Generate the object to manage interactive plot
+    iPlot = IPlot(pw=userData.pw.data, pg=userData.pg.data, freq_resolution=userData.freq_resolution)
     
     
     
-    
-    df = pw.copy()
-
-    # Shared variables of interaction
-
-    ivar = {}
-    ivar['keystroke'] = None
-    keystroke_i1 = 'control' if platform == 'linux' else 'i'
-    keystroke_i2 = 'shift+control' if platform == 'linux' else 'I'
-
-    plotted_lines = {}
-
-    selection = {}
-
-    comb_params = {}
-    # np.median(pw_cluster.period.values)
-    comb_params['P0'] = df.query('amp == amp.max()').period.values.item()
-    comb_params['dP0'] = np.median(np.diff(df.period.values))
-    comb_params['Sigma'] = 0
-    comb_params['nr'] = 5
-    comb_params['nl'] = 5
-
-    # Generate template comb
-    _P, _dP = pattern_period(comb_params['P0'],
-                             comb_params['dP0'],
-                             comb_params['Sigma'],
-                             nr=comb_params['nr'],
-                             nl=comb_params['nl'])
-
-    comb_params['P'] = _P
-    comb_params['dP'] = _dP
-
-    comb_params['data'] = df
-
-    # Periods in the data (observations after prewhitening) that agree with the comb within dP/4
-    comb_params['match'] = np.array([])
-    comb_params['e_P0'] = 0
-    comb_params['e_dP0'] = 0
-    comb_params['e_Sigma'] = 0
-    comb_params['mismatch'] = -1
-    comb_params['residuals'] = -1
-    comb_params['opt'] = None
-
-    # Create figure
-    # fig =  plt.figure(figszie=(10,14))
-    fig = plt.figure(figsize=(18, 16))
-
-    # Create axis grid
-
-    big_vgrid = fig.add_gridspec(
-        5, 1, height_ratios=[1.0, 0.5, 0.5, 0.2, 0.5], hspace=0.0)
-
-    main_hgrid = big_vgrid[0].subgridspec(
-        1, 2, width_ratios=[3, 1.2], wspace=0.2)
-    # main_hgrid = fig.add_gridspec(1, 2, width_ratios=[3,1.2], wspace=0.2)
-
-    sub_vgrid1 = main_hgrid[0].subgridspec(
-        3, 1, height_ratios=[0.1, 1.0, 1.0], hspace=0.0)
-    sub_vgrid2 = main_hgrid[1].subgridspec(
-        3, 1, height_ratios=[0.1, 1.0, 1.0], hspace=0.0)
-
-    ax_echelle = fig.add_subplot(sub_vgrid2[1:])
-    ax_p = fig.add_subplot(sub_vgrid1[0])
-    ax_pg = fig.add_subplot(sub_vgrid1[1])
-    ax_dp = fig.add_subplot(sub_vgrid1[2])
-
-    # Link x-axis for the periodogram and period-spacing pattern
-    ax_pg.get_shared_x_axes().join(ax_dp, ax_pg)
-    ax_pg.get_shared_x_axes().join(ax_p, ax_pg)
-
-    ax_buttons = fig.add_subplot(big_vgrid[1])
-
-    # Results plots before the last row (density plots)
-    result1_hgrid = big_vgrid[2].subgridspec(
-        1, 3, width_ratios=[1, 1, 1], wspace=0.3)
-
-    result1_hgrid_1 = result1_hgrid[0].subgridspec(
-        2, 1, height_ratios=[0.1, 1], hspace=0.1)
-    result1_hgrid_2 = result1_hgrid[1].subgridspec(
-        2, 1, height_ratios=[0.1, 1], hspace=0.1)
-    result1_hgrid_3 = result1_hgrid[2].subgridspec(
-        2, 1, height_ratios=[0.1, 1], hspace=0.1)
-
-    ax_res_P0dP0 = fig.add_subplot(result1_hgrid_1[1])
-    ax_res_dP0Sigma = fig.add_subplot(result1_hgrid_2[1])
-    ax_res_SigmaP0 = fig.add_subplot(result1_hgrid_3[1])
-    ax_res_P0dP0_cbar = fig.add_subplot(result1_hgrid_1[0])
-    ax_res_dP0Sigma_cbar = fig.add_subplot(result1_hgrid_2[0])
-    ax_res_SigmaP0_cbar = fig.add_subplot(result1_hgrid_3[0])
-
-    # Results plots on the last row
-    result2_hgrid = big_vgrid[4].subgridspec(
-        1, 3, width_ratios=[1, 1, 1], wspace=0.3)
-
-    ax_res_P0 = fig.add_subplot(result2_hgrid[0])
-    ax_res_dP0 = fig.add_subplot(result2_hgrid[1])
-    ax_res_Sigma = fig.add_subplot(result2_hgrid[2])
-
-    ax_buttons.axis('off')
+    # df = pw.copy() # Now df is iPlot.pw
+    # comb_params['data'] = df # Now comb_params['data'] is iPlot.pw
+    # comb_params['match'] = np.array([]) # Now comb_params['match'] is iPlot.linearPSP.goodnessFit.match
+ 
+ 
 
     # Plot available periods for the fit as triangles in the top panel
     plotted_lines['selection_p'] = []
@@ -1443,21 +1565,15 @@ if __name__ == '__main__':
     y = np.repeat(0.2, x.size)
     line, = ax_p.plot(x, y, color='k', marker=7, alpha=1,
                       zorder=2, picker=5, ls='None')
-    l2 = line
     plotted_lines['selection_p'].append(line)
 
-    # Plotted range
-    ax_p.set_ylim(0, 1)
-    ax_p.axis('off')
 
     # Plot the periodogram of the light curve
     x = pg.sort_values(by=['period']).period
     y = pg.sort_values(by=['period']).amp
     ax_pg.plot(x, y, lw=1, color='k', zorder=3)
-    ax_pg.get_xaxis().set_visible(False)
 
-    # Labels
-    ax_pg.set_ylabel('amplitude')
+
 
     # Plotted range
     xlim = (df.period.min()-1/365, df.period.max()+1/365)
@@ -1472,16 +1588,13 @@ if __name__ == '__main__':
     _ = df.query('selection==1').period.values
     x = period_for_dP_plot(_, mode='middle')
     y = np.diff(_)
-    line, = ax_dp.plot(x, y, lw=1, color='k', ls='dashed',
-                       marker='.', zorder=2, picker=5)
+    line, = ax_dp.plot(x, y, lw=1, color='k', ls='dashed', marker='.', zorder=2, picker=5)
     plotted_lines['obs_dp'].append(line)
 
     # Mark zero
     ax_dp.axhline(0, ls='dotted', lw=0.5, color='gray')
 
-    # Labels
-    ax_dp.set_xlabel('period (days)')
-    ax_dp.set_ylabel('$\Delta P$ (days)')
+
 
     # Plot period echelle diagram
     colors = [choose_color(val) for val in df.selection.values]
@@ -1516,9 +1629,7 @@ if __name__ == '__main__':
     line = ax_echelle.axvline(dp, ls='dashed', color='gray', lw=2, zorder=2)
     plotted_lines['echelle_vline'].append(line)
 
-    # Labels
-    ax_echelle.set_ylabel('period (days)')
-    ax_echelle.set_xlabel(f'period mod {dp:.5f} (days)')
+
 
     # Plot template comb on the periodogram
     plotted_lines['comb_pg'] = []
@@ -1571,11 +1682,11 @@ if __name__ == '__main__':
         ax.spines['top'].set_visible(True)
         ax.spines['right'].set_visible(True)
 
-    ax_amp = slider_axes[0]
-    ax_mod = slider_axes[1]
-    ax_P0 = slider_axes[2]
-    ax_dP0 = slider_axes[3]
-    ax_Sigma = slider_axes[4]
+    ax_amp_slider = slider_axes[0]
+    ax_mod_slider = slider_axes[1]
+    ax_P0_slider = slider_axes[2]
+    ax_dP0_slider = slider_axes[3]
+    ax_Sigma_slider = slider_axes[4]
 
     # Set range for each slider
     lower_limit_amp = 0
@@ -1608,15 +1719,15 @@ if __name__ == '__main__':
     dP0_initial = comb_params['dP0']
     Sigma_initial = comb_params['Sigma']
 
-    slider_amp = Slider(ax_amp,   'ampl',         lower_limit_amp,   upper_limit_amp,
+    slider_amp = Slider(ax_amp_slider,   'ampl',         lower_limit_amp,   upper_limit_amp,
                         valinit=amp_initial,   valfmt='%1.2f', facecolor='k', valstep=amp_resolution)
-    slider_mod = Slider(ax_mod,   'mod',          lower_limit_mod,   upper_limit_mod,
+    slider_mod = Slider(ax_mod_slider,   'mod',          lower_limit_mod,   upper_limit_mod,
                         valinit=mod_initial,   valfmt='%1.6f d', facecolor='dodgerblue', valstep=mod_resolution)
-    slider_P0 = Slider(ax_P0,    '$P_0$',        lower_limit_P0,    upper_limit_P0,
+    slider_P0 = Slider(ax_P0_slider,    '$P_0$',        lower_limit_P0,    upper_limit_P0,
                        valinit=P0_initial,    valfmt='%1.6f d', facecolor='gold',  valstep=P0_resolution)
-    slider_dP0 = Slider(ax_dP0,   '$\Delta P_0$', lower_limit_dP0,   upper_limit_dP0,
+    slider_dP0 = Slider(ax_dP0_slider,   '$\Delta P_0$', lower_limit_dP0,   upper_limit_dP0,
                         valinit=dP0_initial,   valfmt='%1.6f d', facecolor='red',  valstep=dP0_resolution)
-    slider_Sigma = Slider(ax_Sigma, '$\Sigma$',     lower_limit_Sigma, upper_limit_Sigma,
+    slider_Sigma = Slider(ax_Sigma_slider, '$\Sigma$',     lower_limit_Sigma, upper_limit_Sigma,
                           valinit=Sigma_initial, valfmt='%1.6f',   facecolor='red',  valstep=Sigma_resolution)
 
     slider_amp.on_changed(update_amplitude_tolerance)
@@ -1694,7 +1805,7 @@ if __name__ == '__main__':
     span = mwidgets.SpanSelector(
         ax_pg, onselect, 'horizontal', rectprops=rect_props, useblit=False)
 
-    ax_Sigma.set_title(f'TIC {TIC}')
+    ax_Sigma_slider.set_title(f'TIC {TIC}')
     # fig.suptitle(f'TIC {TIC}')
 
     # mng = plt.get_current_fig_manager()
@@ -1708,3 +1819,4 @@ if __name__ == '__main__':
     # Disconnect from the plot visuzlization
     for cid in [cid_key, cid_button, cid_pick, cid_box_P0, cid_box_dP0, cid_box_Sigma]:
         fig.canvas.mpl_disconnect(cid)
+
