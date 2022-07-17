@@ -22,8 +22,10 @@ from matplotlib.widgets import TextBox
 import matplotlib.widgets as mwidgets
 from matplotlib.colors import BoundaryNorm
 from matplotlib.ticker import MaxNLocator
+import matplotlib.transforms as tx
 
 from numba import jit, njit, float32, int32
+from soupsieve import select
 
 # from PyQt4 import QtGui
 # from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
@@ -304,11 +306,11 @@ def update_echelle(val):
 
     ax_echelle.set_xlabel(f'period mod {dp:.5f} (days)')
 
-    for line in plotted_lines['mod_dp']:
+    for line in plotted_lines['mdp']:
         clear_line2D(fig, line, ax_dp, redraw=False)
-    del plotted_lines['mod_dp'][:]
+    del plotted_lines['mdp'][:]
     line = ax_dp.axhline(dp, color='dodgerblue', lw=1, zorder=0, ls='dotted')
-    plotted_lines['mod_dp'].append(line)
+    plotted_lines['mdp'].append(line)
 
     fig.canvas.draw_idle()
 
@@ -1307,8 +1309,8 @@ class LinearPSP:
         self.Sigma = Sigma
         self.nr = nr
         self.nl = nl
-        self.P, self.dP = pattern_period(P0,dP0,Sigma,nr,nl)
-        self.goodnesFit = GoodnesFit()
+        self.p, self.dp = pattern_period(P0,dP0,Sigma,nr,nl)
+        # self.goodnesFit = GoodnesFit()
 
 class GoodnesFit:
     match = np.array([])
@@ -1326,21 +1328,32 @@ class IPlot:
         self.pw = pw.copy() # TODO: Check if copy is not necessary
         self.pg = pg
         self.freq_resolution = freq_resolution
+        
+        # Interavtivity
         self.key = None
         
+        # Parse the raw data
+        self.parse_pw()
+
         # Generate fig, its axes
         self.layout()
         self.format()
         
         # Make plots
+        # colorOnOff = {0: 'lightgrey', 1: 'k'}
+        self._colorOnOff = pd.Series(data=['lightgrey', 'k'], index=[0,1])
+
         self.plot_p()
         self.plot_pg()
-        
-        
-        P0 = pw.query('ampl == ampl.max()').period.values.item()
-        dP0 = np.median(np.diff(pw.period.values))
-        self.linearPSP = LinearPSP(P0,dP0)
-        
+        self.add_p2pg()
+        self.plot_dp()
+        self.plot_echelle()
+        self.add_mdp2dp()
+        self.PSP.add2echelle()
+        self.PSP.add2pg()
+        self.PSP.add2dp()
+        # self.addSliders()
+                
         # self.fig = plt.gcf() if fig is None else fig
         # self.ax = self.fig.gca()
         self.connections = ()
@@ -1415,113 +1428,323 @@ class IPlot:
     #     #     self.ax.figure.canvas.draw_idle()
     #     pass
 
+
+    class LinearPSP(LinearPSP):
+        def __init__(self,outer_instance,P0,dP0,Sigma=0,nr=5,nl=5):
+            LinearPSP.__init__(self,P0,dP0,Sigma,nr,nl)
+            self.outer_instance = outer_instance
+
+        def add2echelle(self):
+            ax = self.outer_instance.axs.echelle
+            p = self.p
+            module_dp = self.outer_instance.module_dp
+            color = 'r'
+            size = 30
+            ax.scatter(p%module_dp-module_dp, p, s=size, color=color, zorder=3, picker=5)
+            ax.scatter(p%module_dp+module_dp, p, s=size, color=color, zorder=3, picker=5)
+            ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
+
+        def add2pg(self):
+            ax = self.outer_instance.axs.pg
+            trans = tx.blended_transform_factory(ax.transData, ax.transAxes)
+            p = self.p
+            P0 = self.P0
+            ax.plot(np.repeat(p, 3), np.tile([0, 1, np.nan], len(p)), color='r', alpha=0.3, lw=2, zorder=0, transform=trans)
+            # Overplot P0 with a different color
+            ax.axvline(P0, color='gold', alpha=0.9, lw=2, zorder=0)
+
+        def add2dp(self):
+            ax = self.outer_instance.axs.dp
+            p = self.p
+            x = period_for_dP_plot(p, mode='middle')
+            y = np.diff(p)
+            ax.plot(x, y, lw=1, color='r', marker='*', ls='solid', zorder=1, alpha=0.5)
+            # Overplot dp associated with P0 with a different color
+            if self.nr > 1:
+                i = np.abs(self.p-self.P0).argmin()
+                period_pair = self.p[i:i+2]
+                x = period_for_dP_plot(period_pair, mode='middle')
+                y = np.diff(period_pair)
+                ax.plot(x, y, lw=1, color='gold', marker='*', ls='None', zorder=1, alpha=0.5)
+            
+            
+    def plot_dp(self):
+        ax = self.axs.dp
+        p = self.pw.query('selection==1').period.values
+        x = period_for_dP_plot(p, mode='middle')
+        y = np.diff(p)
+        ax.plot(x, y, lw=1, color='k', ls='dashed', marker='.', zorder=2, picker=5)
+        # Mark level zero
+        ax.axhline(0, ls='dotted', lw=0.5, color='gray') 
+
+            
+            
+
+    def parse_pw(self):
+        # Estimate a module dp
+        self.module_dp = np.median(np.diff(self.pw.period.values))
+        # Estimate a linear PSP of 10 periods around the dominant period 
+        self.dominant_p = self.pw.query('ampl == ampl.max()').period.values.item()
+        self.PSP = self.LinearPSP(self,self.dominant_p,self.module_dp)
+        
     def format(self):
         """Format the layout by adding label and tweaks to the axes"""
-        # Link x-axis for the periodogram and period-spacing pattern
-        self.axs.pg.get_shared_x_axes().join(self.axs.dp, self.axs.pg)
-        self.axs.pg.get_shared_x_axes().join(self.axs.p, self.axs.pg)
-        
-        # Labels
-        self.axs.pg.set_ylabel('amplitude')
-        self.axs.dp.set_xlabel('period (days)')
-        self.axs.dp.set_ylabel('$\Delta P$ (days)')
-        self.axs.echelle.set_ylabel('period (days)')
-        dp = np.median(np.diff(self.pw.period.values))
-        self.axs.echelle.set_xlabel(f'period mod {dp:.5f} (days)')
-        self.axs.P0dP0.set_xlabel('$P_0$')
-        self.axs.P0dP0.set_ylabel('$\Delta P_0$')
-        self.axs.P0.set_xlabel('$P_0$')
-        self.axs.P0.set_ylabel('min $S$')
-        self.axs.dP0Sigma.set_xlabel('$\Delta P_0$')
-        self.axs.dP0Sigma.set_ylabel('$\Sigma$')
-        self.axs.dP0.set_xlabel('$\Delta P_0$')
-        self.axs.dP0.set_ylabel('min $S$')       
-        self.axs.SigmaP0.set_xlabel('$\Sigma$')
-        self.axs.SigmaP0.set_ylabel('$P_0$')
-        self.axs.Sigma.set_xlabel('$\Sigma$')
-        self.axs.Sigma.set_ylabel('min $S$')
+        def fig_and_axs():
+            
+            # Link axis
+            def xlim_to_ylim_echelle(event_ax, _self=self):
+                _self.axs.echelle.set_ylim(event_ax.get_xlim())
+            self.axs.dp.sharex(self.axs.pg)
+            self.axs.p.sharex(self.axs.pg)
+            self.axs.pg.callbacks.connect('xlim_changed', xlim_to_ylim_echelle)
+            self.axs.dp.callbacks.connect('xlim_changed', xlim_to_ylim_echelle)
 
-        # Visibility
-        self.axs.buttons.axis('off')
-        self.axs.p.axis('off')
-        self.axs.pg.get_xaxis().set_visible(False)
+            
+            # Labels
+            self.axs.pg.set_ylabel('amplitude')
+            self.axs.dp.set_xlabel('period (days)')
+            self.axs.dp.set_ylabel('$\Delta P$ (days)')
+            self.axs.echelle.set_ylabel('period (days)')
+            self.axs.echelle.set_xlabel(f'period mod {self.module_dp:.5f} (days)')
+            self.axs.P0dP0.set_xlabel('$P_0$')
+            self.axs.P0dP0.set_ylabel('$\Delta P_0$')
+            self.axs.P0.set_xlabel('$P_0$')
+            self.axs.P0.set_ylabel('min $S$')
+            self.axs.dP0Sigma.set_xlabel('$\Delta P_0$')
+            self.axs.dP0Sigma.set_ylabel('$\Sigma$')
+            self.axs.dP0.set_xlabel('$\Delta P_0$')
+            self.axs.dP0.set_ylabel('min $S$')       
+            self.axs.SigmaP0.set_xlabel('$\Sigma$')
+            self.axs.SigmaP0.set_ylabel('$P_0$')
+            self.axs.Sigma.set_xlabel('$\Sigma$')
+            self.axs.Sigma.set_ylabel('min $S$')
 
-        # Color bars
-        self.axs.P0dP0_cbar.xaxis.tick_top()
-        self.axs.P0dP0_cbar.xaxis.set_label_position('top')
-        self.axs.P0dP0_cbar.set_xlabel(f'log(S)')
-        self.axs.dP0Sigma_cbar.xaxis.tick_top()
-        self.axs.dP0Sigma_cbar.xaxis.set_label_position('top')
-        self.axs.dP0Sigma_cbar.set_xlabel(f'log(S)')
-        self.axs.SigmaP0_cbar.xaxis.tick_top()
-        self.axs.SigmaP0_cbar.xaxis.set_label_position('top')
-        self.axs.SigmaP0_cbar.set_xlabel(f'log(S)')
-        
-        # Ranges
-        self.axs.p.set_ylim(0, 1)
+            # Visibility
+            self.axs.buttons.axis('off')
+            self.axs.p.axis('off')
+            self.axs.pg.get_xaxis().set_visible(False)
+
+            # Color bars
+            self.axs.P0dP0_cbar.xaxis.tick_top()
+            self.axs.P0dP0_cbar.xaxis.set_label_position('top')
+            self.axs.P0dP0_cbar.set_xlabel(f'log(S)')
+            self.axs.dP0Sigma_cbar.xaxis.tick_top()
+            self.axs.dP0Sigma_cbar.xaxis.set_label_position('top')
+            self.axs.dP0Sigma_cbar.set_xlabel(f'log(S)')
+            self.axs.SigmaP0_cbar.xaxis.tick_top()
+            self.axs.SigmaP0_cbar.xaxis.set_label_position('top')
+            self.axs.SigmaP0_cbar.set_xlabel(f'log(S)')
+            
+            # Ranges
+            self.axs.p.set_ylim(0, 1)
+            
+        def sliders():
+            # Slider axes
+            for slider in vars(self.axs.sliders):
+                ax = getattr(self.axs.sliders, slider)
+                ax.spines['top'].set_visible(True)
+                ax.spines['right'].set_visible(True)
+            # Sliders
+            for slider in vars(self.sliders):
+                slider = getattr(self.sliders, slider)
+                l1,l2 = slider.ax.get_lines()
+                l1.remove() # Remove vertical line
+            
+            # Apply values            
+            def apply_values(ax, slider, label, vmin, vmax, valinit, valfmt, facecolor, valstep):
+                slider.valmin = vmin
+                slider.valmax = vmax
+                ax.set_xlim(slider.valmin,slider.valmax)
+                slider.label.set_text(label)
+                slider.set_val(valinit)
+                # slider.val(valinit)
+                slider.valfmt = valfmt
+                # ax.set_facecolor(facecolor)
+                slider.poly.set_fc(facecolor)
+                slider.valstep = valstep
+
+            # Amplitude
+            ax = self.axs.sliders.ampl
+            slider = self.sliders.ampl
+            label='Ampl' # OK
+            vmin = 0.0 # OK
+            vmax = 1.0 # OK
+            valfmt = '%1.2f' # OK
+            valinit = 0 # OK
+            # valinit = valfmt%0 # OK
+            facecolor = 'k' # OK
+            valstep = 0.01 # From 1% to 100% # OK      
+            apply_values(ax, slider, label, vmin, vmax, valinit, valfmt, facecolor, valstep)
+            # Module P
+            ax = self.axs.sliders.module_p
+            slider = self.sliders.module_p
+            label='Mod'
+            p = self.pw.period.values
+            vmin = (100*u.s).to(u.day).value # not expected under 100 seconds
+            vmax = (4000*u.s).to(u.day).value # not expected over 4000 second
+            valfmt = '%1.6f d' # TODO: Give physical meaning to this
+            valinit = self.PSP.dP0
+            # valinit = valfmt%self.PSP.dP0
+            facecolor = 'dodgerblue'
+            valstep = 0.0001 # TODO: Express as a day-like resolution
+            apply_values(ax, slider, label, vmin, vmax, valinit, valfmt, facecolor, valstep)
+            # P0
+            ax = self.axs.sliders.P0
+            slider = self.sliders.P0
+            label = '$P_0$'
+            vmin = self.pw.period.min()
+            vmax = self.pw.period.max()
+            valfmt = '%1.6f d' # TODO: Give physical meaning to this
+            valinit = self.PSP.P0
+            # valinit = valfmt%self.PSP.P0
+            facecolor = 'gold'
+            valstep = 0.0001 # TODO: Express as a day-like resolution
+            apply_values(ax, slider, label, vmin, vmax, valinit, valfmt, facecolor, valstep)
+            # dP0
+            ax = self.axs.sliders.dP0
+            slider = self.sliders.dP0
+            label = '$\Delta P_0$'
+            vmin = (100*u.s).to(u.day).value # not expected under 100 seconds
+            vmax = (4000*u.s).to(u.day).value # not expected over 4000 second
+            valfmt = '%1.6f d' # TODO: Give physical meaning to this
+            valinit = self.PSP.dP0
+            # valinit = valfmt%self.PSP.dP0
+            facecolor = 'r'
+            valstep = 0.0001 # TODO: Express as a day-like resolution
+            apply_values(ax, slider, label, vmin, vmax, valinit, valfmt, facecolor, valstep)
+            # Sigma
+            ax = self.axs.sliders.Sigma
+            slider = self.sliders.Sigma
+            label = '$\Sigma$'
+            vmin = -0.35 # TODO: Give physical meaning to this
+            vmax = 0.35 # TODO: Give physical meaning to this
+            valfmt = '%1.6f' # TODO: Give physical meaning to this
+            valinit = 0
+            # valinit = valfmt%0
+            facecolor = 'r'
+            valstep = 0.001 # TODO: Express as a day-like resolution
+            apply_values(ax, slider, label, vmin, vmax, valinit, valfmt, facecolor, valstep)
+            
+        fig_and_axs()
+        sliders()
         
     def layout(self):
         """Initizlize figure and axes as attributes"""
-        class Axs:
-            pass
-        fig = plt.figure(figsize=(18, 16))
-        axs = Axs()
+        
+        def fig_and_axs():
+            class Axs:
+                """Namespace for axes"""
+                pass
+            
+            fig = plt.figure(figsize=(18, 16))
+            axs = Axs()
 
-        # Create axis grid
-        main5Rows = fig.add_gridspec(5, 1, height_ratios=[1.0, 0.5, 0.5, 0.2, 0.5], hspace=0.0)
+            # Create axis grid
+            main5Rows = fig.add_gridspec(5, 1, height_ratios=[1.0, 0.5, 0.5, 0.2, 0.5], hspace=0.0)
 
-        # Row 0: Period indicator on top of pg (P), pg, dP, echelle 
-        mainRow0_main2Cols = main5Rows[0].subgridspec(1, 2, width_ratios=[3, 1.2], wspace=0.2)
-        mainRow0_mainCol0_main3Rows = mainRow0_main2Cols[0].subgridspec(3, 1, height_ratios=[0.1, 1.0, 1.0], hspace=0.0)
-        mainRow0_mainCol1_main3Rows = mainRow0_main2Cols[1].subgridspec(3, 1, height_ratios=[0.1, 1.0, 1.0], hspace=0.0)
-        axs.p = fig.add_subplot(mainRow0_mainCol0_main3Rows[0])
-        axs.pg = fig.add_subplot(mainRow0_mainCol0_main3Rows[1])
-        axs.dp = fig.add_subplot(mainRow0_mainCol0_main3Rows[2])
-        axs.echelle = fig.add_subplot(mainRow0_mainCol1_main3Rows[1:])
-        
-        # Row 1: Buttons
-        axs.buttons = fig.add_subplot(main5Rows[1])
+            # Row 0: Period indicator on top of pg (P), pg, dP, echelle 
+            mainRow0_main2Cols = main5Rows[0].subgridspec(1, 2, width_ratios=[3, 1.2], wspace=0.2)
+            mainRow0_mainCol0_main3Rows = mainRow0_main2Cols[0].subgridspec(3, 1, height_ratios=[0.1, 1.0, 1.0], hspace=0.0)
+            mainRow0_mainCol1_main3Rows = mainRow0_main2Cols[1].subgridspec(3, 1, height_ratios=[0.1, 1.0, 1.0], hspace=0.0)
+            axs.p = fig.add_subplot(mainRow0_mainCol0_main3Rows[0])
+            axs.pg = fig.add_subplot(mainRow0_mainCol0_main3Rows[1])
+            axs.dp = fig.add_subplot(mainRow0_mainCol0_main3Rows[2])
+            axs.echelle = fig.add_subplot(mainRow0_mainCol1_main3Rows[1:])
+            
+            # Row 1: Buttons
+            axs.buttons = fig.add_subplot(main5Rows[1])
 
-        # Row 2: Landscape with color bat at the top
-        mainRow2_main3Cols = main5Rows[2].subgridspec(1, 3, width_ratios=[1, 1, 1], wspace=0.3)
-        # Accomodate space for landscape and color bar at the top
-        mainRow2_mainCol0_main2Rows = mainRow2_main3Cols[0].subgridspec(2, 1, height_ratios=[0.1, 1], hspace=0.1)
-        mainRow2_mainCol1_main2Rows = mainRow2_main3Cols[1].subgridspec(2, 1, height_ratios=[0.1, 1], hspace=0.1)
-        mainRow2_mainCol2_main2Rows = mainRow2_main3Cols[2].subgridspec(2, 1, height_ratios=[0.1, 1], hspace=0.1)
-        # Create axes for landscape and color bar
-        axs.P0dP0 = fig.add_subplot(mainRow2_mainCol0_main2Rows[1])
-        axs.dP0Sigma = fig.add_subplot(mainRow2_mainCol1_main2Rows[1])
-        axs.SigmaP0 = fig.add_subplot(mainRow2_mainCol2_main2Rows[1])
-        axs.P0dP0_cbar = fig.add_subplot(mainRow2_mainCol0_main2Rows[0])
-        axs.dP0Sigma_cbar = fig.add_subplot(mainRow2_mainCol1_main2Rows[0])
-        axs.SigmaP0_cbar = fig.add_subplot(mainRow2_mainCol2_main2Rows[0])
-        
-        # Row 3: Blank space used as spacer
-        
-        # Row 4: PDF
-        mainRow4_main3Cols = main5Rows[4].subgridspec(1, 3, width_ratios=[1, 1, 1], wspace=0.3)
-        axs.P0 = fig.add_subplot(mainRow4_main3Cols[0])
-        axs.dP0 = fig.add_subplot(mainRow4_main3Cols[1])
-        axs.Sigma = fig.add_subplot(mainRow4_main3Cols[2])
-        
-        # Create attributes
-        self.fig = fig
-        self.axs = axs
+            # Row 2: Landscape with color bat at the top
+            mainRow2_main3Cols = main5Rows[2].subgridspec(1, 3, width_ratios=[1, 1, 1], wspace=0.3)
+            # Accomodate space for landscape and color bar at the top
+            mainRow2_mainCol0_main2Rows = mainRow2_main3Cols[0].subgridspec(2, 1, height_ratios=[0.1, 1], hspace=0.1)
+            mainRow2_mainCol1_main2Rows = mainRow2_main3Cols[1].subgridspec(2, 1, height_ratios=[0.1, 1], hspace=0.1)
+            mainRow2_mainCol2_main2Rows = mainRow2_main3Cols[2].subgridspec(2, 1, height_ratios=[0.1, 1], hspace=0.1)
+            # Create axes for landscape and color bar
+            axs.P0dP0 = fig.add_subplot(mainRow2_mainCol0_main2Rows[1])
+            axs.dP0Sigma = fig.add_subplot(mainRow2_mainCol1_main2Rows[1])
+            axs.SigmaP0 = fig.add_subplot(mainRow2_mainCol2_main2Rows[1])
+            axs.P0dP0_cbar = fig.add_subplot(mainRow2_mainCol0_main2Rows[0])
+            axs.dP0Sigma_cbar = fig.add_subplot(mainRow2_mainCol1_main2Rows[0])
+            axs.SigmaP0_cbar = fig.add_subplot(mainRow2_mainCol2_main2Rows[0])
+            
+            # Row 3: Blank space used as spacer
+            
+            # Row 4: PDF
+            mainRow4_main3Cols = main5Rows[4].subgridspec(1, 3, width_ratios=[1, 1, 1], wspace=0.3)
+            axs.P0 = fig.add_subplot(mainRow4_main3Cols[0])
+            axs.dP0 = fig.add_subplot(mainRow4_main3Cols[1])
+            axs.Sigma = fig.add_subplot(mainRow4_main3Cols[2])
+            
+            # Create attributes
+            self.fig = fig
+            self.axs = axs
+            
+        def sliders():
+            class Sliders:
+                """Namespace for sliders"""
+                pass
+
+            # Make space to place sliders
+            self.fig.subplots_adjust(bottom=0.2, top=0.8)
+            # sliders'dimensions
+            height = 0.01
+            width = 0.775
+            x0 = 0.125
+            y0 = 0.81
+            hspacing = 0.015
+            # Number of sliders
+            nSliders = 5
+            # Slider positions
+            coords = [(x0, y0+i*hspacing, width, height) for i in range(nSliders)]
+            # Slider axes
+            self.axs.sliders = Sliders()
+            self.axs.sliders.ampl = self.fig.add_axes(coords[0])
+            self.axs.sliders.module_p = self.fig.add_axes(coords[1])
+            self.axs.sliders.P0 = self.fig.add_axes(coords[2])
+            self.axs.sliders.dP0 = self.fig.add_axes(coords[3])
+            self.axs.sliders.Sigma = self.fig.add_axes(coords[4])
+            
+            # Create sliders
+            self.sliders = Sliders()
+            # Amplitude
+            ax = self.axs.sliders.ampl
+            self.sliders.ampl = Slider(ax, '', 0, 1)
+            # Module P
+            ax = self.axs.sliders.module_p
+            self.sliders.module_p = Slider(ax, '', 0, 1)
+            # P0
+            ax = self.axs.sliders.P0
+            self.sliders.P0 = Slider(ax, '', 0, 1)
+            # dP0
+            ax = self.axs.sliders.dP0
+            self.sliders.dP0 = Slider(ax, '', 0, 1)
+            # Sigma
+            ax = self.axs.sliders.Sigma
+            self.sliders.Sigma = Slider(ax, '', 0, 1)
+
+        # Create the figure and its axis
+        fig_and_axs()
+        # Create the sliders of the figure
+        sliders()
         
     def plot_p(self):
-        for selection,color in zip([0,1],['lightgrey','k']):
+        ax = self.axs.p
+        for selection in [0,1]:
             x = self.pw.query('selection==@selection').period.values
             y = np.repeat(0.2, x.size)
-            self.axs.p.plot(x, y, color=color, marker=7, alpha=1, zorder=2, picker=5, ls='None')
+            color = self._colorOnOff[selection]
+            ax.plot(x, y, color=color, marker=7, alpha=1, zorder=2, picker=5, ls='None')
         
         # Redraw
         # self.fig.canvas.draw_idle()
 
     def plot_pg(self):
+        ax = self.axs.pg
         # Plot the periodogram of the light curve
         x = self.pg.period
         y = self.pg.ampl
-        self.axs.pg.plot(x, y, lw=1, color='k', zorder=3)
+        ax.plot(x, y, lw=1, color='k', zorder=3)
         # Plotted range
         pmin = self.pg.period.min()
         pmax = self.pg.period.max()
@@ -1529,8 +1752,51 @@ class IPlot:
         _, pmax_freq_resolution = freq2period_resolution(pmax, self.freq_resolution)
         xlim1 = self.pw.period.min()-pmin_freq_resolution
         xlim2 = self.pw.period.max()+pmax_freq_resolution
-        self.axs.pg.set_xlim(xlim1, xlim2)
+        ax.set_xlim(xlim1, xlim2)
+        
+    def add_p2pg(self):
+        ax = self.axs.pg
+        trans = tx.blended_transform_factory(ax.transData, ax.transAxes)
+        p = self.pw.period.values
+        ax.plot(np.repeat(p, 3), np.tile([0, 1, np.nan], len(p)), lw=1, ls='dotted', color='k', transform=trans)
 
+    def plot_dp(self):
+        ax = self.axs.dp
+        p = self.pw.query('selection==1').period.values
+        x = period_for_dP_plot(p, mode='middle')
+        y = np.diff(p)
+        ax.plot(x, y, lw=1, color='k', ls='dashed', marker='.', zorder=2, picker=5)
+        # Mark level zero
+        ax.axhline(0, ls='dotted', lw=0.5, color='gray') 
+
+    def plot_echelle(self):
+        ax = self.axs.echelle
+        p = self.pw.period.values
+        module_dp = self.module_dp
+        ampl = self.pw.ampl.values
+        selection = self.pw.selection.values
+        color = self._colorOnOff[selection]
+        size = 100.*(ampl/ampl.max())
+        # scatter1 = self.axs.echelle.scatter(p%module_dp-module_dp, p, s=size, color=color, zorder=3, picker=5)
+        # scatter2 = self.axs.echelle.scatter(p%module_dp+module_dp, p, s=size, color=color, zorder=3, picker=5)
+        # scatter3 = self.axs.echelle.scatter(p%module_dp   , p, s=size, color=color, zorder=3, picker=5)
+        ax.scatter(p%module_dp-module_dp, p, s=size, color=color, zorder=3, picker=5)
+        ax.scatter(p%module_dp+module_dp, p, s=size, color=color, zorder=3, picker=5)
+        ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
+        # Plotted range
+        ax.set_xlim(-module_dp, 2*module_dp)
+        ax.set_ylim(p.min(), p.max())
+        # Separe the 3 plotted echelles
+        ax.axvline(0,  ls='dashed', color='gray', lw=2, zorder=2)
+        ax.axvline(module_dp, ls='dashed', color='gray', lw=2, zorder=2)
+
+    def add_mdp2dp(self):
+        ax = self.axs.dp
+        # line = ax_dp.axhline(dp, color='dodgerblue', lw=1, zorder=0, ls='dotted')
+        ax.axhline(self.module_dp, color='dodgerblue', lw=1, zorder=0, ls='dotted')
+        
+
+        
 
 
     # Key to enable interactive mode: all
@@ -1557,178 +1823,174 @@ if __name__ == '__main__':
     # comb_params['data'] = df # Now comb_params['data'] is iPlot.pw
     # comb_params['match'] = np.array([]) # Now comb_params['match'] is iPlot.linearPSP.goodnessFit.match
  
- 
+    # TODO: Keep adding content of the plots :-)
 
     # Plot available periods for the fit as triangles in the top panel
     plotted_lines['selection_p'] = []
-    x = df.query('selection==1').period.values
-    y = np.repeat(0.2, x.size)
-    line, = ax_p.plot(x, y, color='k', marker=7, alpha=1,
-                      zorder=2, picker=5, ls='None')
+    # x = df.query('selection==1').period.values
+    # y = np.repeat(0.2, x.size)
+    # line, = ax_p.plot(x, y, color='k', marker=7, alpha=1,
+    #                   zorder=2, picker=5, ls='None')
     plotted_lines['selection_p'].append(line)
 
 
-    # Plot the periodogram of the light curve
-    x = pg.sort_values(by=['period']).period
-    y = pg.sort_values(by=['period']).amp
-    ax_pg.plot(x, y, lw=1, color='k', zorder=3)
+    # # Plot the periodogram of the light curve
+    # x = pg.sort_values(by=['period']).period
+    # y = pg.sort_values(by=['period']).amp
+    # ax_pg.plot(x, y, lw=1, color='k', zorder=3)
 
-
-
-    # Plotted range
-    xlim = (df.period.min()-1/365, df.period.max()+1/365)
-    ax_pg.set_xlim(xlim)
+    # # Plotted range
+    # xlim = (df.period.min()-1/365, df.period.max()+1/365)
+    # ax_pg.set_xlim(xlim)
 
     # Overplot prewhitening results as vertical lines on the periodogram
-    for p in df.period:
-        ax_pg.axvline(p, color='k', ls='dotted', lw=1)
+    # for p in df.period:
+    #     ax_pg.axvline(p, color='k', ls='dotted', lw=1)
 
     # Plot prewhitening dP vs P
-    plotted_lines['obs_dp'] = []
-    _ = df.query('selection==1').period.values
-    x = period_for_dP_plot(_, mode='middle')
-    y = np.diff(_)
-    line, = ax_dp.plot(x, y, lw=1, color='k', ls='dashed', marker='.', zorder=2, picker=5)
-    plotted_lines['obs_dp'].append(line)
+    # plotted_lines['obs_dp'] = []
+    # _ = df.query('selection==1').period.values
+    # x = period_for_dP_plot(_, mode='middle')
+    # y = np.diff(_)
+    # line, = ax_dp.plot(x, y, lw=1, color='k', ls='dashed', marker='.', zorder=2, picker=5)
+    # plotted_lines['obs_dp'].append(line)
 
-    # Mark zero
-    ax_dp.axhline(0, ls='dotted', lw=0.5, color='gray')
+    # # Mark zero
+    # ax_dp.axhline(0, ls='dotted', lw=0.5, color='gray')
 
 
 
     # Plot period echelle diagram
-    colors = [choose_color(val) for val in df.selection.values]
-    dp = np.median(np.diff(df.period.values))
-    scatter1 = ax_echelle.scatter((df.period) % dp - dp, df.period,
-                                  s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-    scatter2 = ax_echelle.scatter((df.period) % dp + dp, df.period,
-                                  s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-    scatter3 = ax_echelle.scatter((df.period) % dp,      df.period,
-                                  s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-    plotted_lines['mod_dp'] = []
-    line = ax_dp.axhline(dp, color='dodgerblue', lw=1, zorder=0, ls='dotted')
-    plotted_lines['mod_dp'].append(line)
+    # colors = [choose_color(val) for val in df.selection.values]
+    # dp = np.median(np.diff(df.period.values))
+    # scatter1 = ax_echelle.scatter((df.period) % dp - dp, df.period,
+    #                               s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
+    # scatter2 = ax_echelle.scatter((df.period) % dp + dp, df.period,
+    #                               s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
+    # scatter3 = ax_echelle.scatter((df.period) % dp,      df.period,
+    #                               s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
+    # plotted_lines['mdp'] = []
+    # line = ax_dp.axhline(dp, color='dodgerblue', lw=1, zorder=0, ls='dotted')
+    # plotted_lines['mdp'].append(line)
 
     # Plot period echelle diagram of the comb
-    scatter11 = ax_echelle.scatter(
-        (comb_params['P']) % dp - dp, comb_params['P'], s=30, color='r', zorder=4, alpha=0.3, marker='*')
-    scatter22 = ax_echelle.scatter(
-        (comb_params['P']) % dp + dp, comb_params['P'], s=30, color='r', zorder=4, alpha=0.3, marker='*')
-    scatter33 = ax_echelle.scatter(
-        (comb_params['P']) % dp,      comb_params['P'], s=30, color='r', zorder=4, alpha=0.3, marker='*')
-    scatter44 = ax_echelle.scatter(
-        (comb_params['P0']) % dp,      comb_params['P0'], s=30, color='gold', zorder=4, alpha=0.3, marker='*')
+    # scatter11 = ax_echelle.scatter(
+    #     (comb_params['P']) % dp - dp, comb_params['P'], s=30, color='r', zorder=4, alpha=0.3, marker='*')
+    # scatter22 = ax_echelle.scatter(
+    #     (comb_params['P']) % dp + dp, comb_params['P'], s=30, color='r', zorder=4, alpha=0.3, marker='*')
+    # scatter33 = ax_echelle.scatter(
+    #     (comb_params['P']) % dp,      comb_params['P'], s=30, color='r', zorder=4, alpha=0.3, marker='*')
+    # scatter44 = ax_echelle.scatter(
+    #     (comb_params['P0']) % dp,      comb_params['P0'], s=30, color='gold', zorder=4, alpha=0.3, marker='*')
 
-    # Plotted range
-    ax_echelle.set_xlim(-dp, 2.*dp)
-    ax_echelle.set_ylim(df.period.min(), df.period.max())
+    # # Plotted range
+    # ax_echelle.set_xlim(-dp, 2.*dp)
+    # ax_echelle.set_ylim(df.period.min(), df.period.max())
 
     # Separating the different echelles in the figure
-    plotted_lines['echelle_vline'] = []
-    ax_echelle.axvline(0,  ls='dashed', color='gray', lw=2, zorder=2)
-    line = ax_echelle.axvline(dp, ls='dashed', color='gray', lw=2, zorder=2)
-    plotted_lines['echelle_vline'].append(line)
+    # plotted_lines['echelle_vline'] = []
+    # ax_echelle.axvline(0,  ls='dashed', color='gray', lw=2, zorder=2)
+    # line = ax_echelle.axvline(dp, ls='dashed', color='gray', lw=2, zorder=2)
+    # plotted_lines['echelle_vline'].append(line)
 
 
 
-    # Plot template comb on the periodogram
-    plotted_lines['comb_pg'] = []
-    for p in comb_params['P']:
-        if p != comb_params['P0']:
-            line = ax_pg.axvline(p, color='r', alpha=0.3, lw=2, zorder=0)
-            plotted_lines['comb_pg'].append(line)
-    line = ax_pg.axvline(
-        comb_params['P0'], color='gold', alpha=0.9, lw=2, zorder=0)
-    plotted_lines['comb_pg'].append(line)
-    # plot_updated_comb(interactive=False)
+    # # Plot template comb on the periodogram
+    # plotted_lines['comb_pg'] = []
+    # for p in comb_params['P']:
+    #     if p != comb_params['P0']:
+    #         line = ax_pg.axvline(p, color='r', alpha=0.3, lw=2, zorder=0)
+    #         plotted_lines['comb_pg'].append(line)
+    # line = ax_pg.axvline(comb_params['P0'], color='gold', alpha=0.9, lw=2, zorder=0)
+    # plotted_lines['comb_pg'].append(line)
+    # # plot_updated_comb(interactive=False)
 
     # Plot template dP vs P
-    plotted_lines['comb_dp'] = []
-    x = period_for_dP_plot(comb_params['P'], mode='middle')
-    y = np.diff(comb_params['P'])
-    line, = ax_dp.plot(x, y, lw=1, color='r', marker='*',
-                       ls='solid', zorder=1, alpha=0.5)
-    plotted_lines['comb_dp'].append(line)
-    if comb_params['nr'] > 1:
-        ind = np.abs(comb_params['P']-comb_params['P0']).argmin()
-        _ = comb_params['P'][ind:ind+2]
-        x = period_for_dP_plot(_, mode='middle')
-        y = np.diff(_)
-        line, = ax_dp.plot(x, y, lw=1, color='gold',
-                           marker='*', ls='None', zorder=1, alpha=.5)
-        plotted_lines['comb_dp'].append(line)
+    # plotted_lines['comb_dp'] = []
+    # x = period_for_dP_plot(comb_params['P'], mode='middle')
+    # y = np.diff(comb_params['P'])
+    # line, = ax_dp.plot(x, y, lw=1, color='r', marker='*',ls='solid', zorder=1, alpha=0.5)
+    # plotted_lines['comb_dp'].append(line)
+    # if comb_params['nr'] > 1:
+    #     ind = np.abs(comb_params['P']-comb_params['P0']).argmin()
+    #     _ = comb_params['P'][ind:ind+2]
+    #     x = period_for_dP_plot(_, mode='middle')
+    #     y = np.diff(_)
+    #     line, = ax_dp.plot(x, y, lw=1, color='gold',
+    #                        marker='*', ls='None', zorder=1, alpha=.5)
+    #     plotted_lines['comb_dp'].append(line)
 
     # Plot observations that match the comb
     plotted_lines['observed_p'] = []
 
-    # Sliders
+    # # Sliders
 
-    # Make space to place sliders
-    fig.subplots_adjust(bottom=0.2, top=0.8)
+    # # Make space to place sliders
+    # fig.subplots_adjust(bottom=0.2, top=0.8)
 
-    # Create axes for sliders
-    height = 0.01
-    width = 0.775
-    x0 = 0.125
-    y0 = 0.81
-    hspacing = 0.015
+    # # Create axes for sliders
+    # height = 0.01
+    # width = 0.775
+    # x0 = 0.125
+    # y0 = 0.81
+    # hspacing = 0.015
 
-    n_sliders = 5
+    # n_sliders = 5
 
-    coords = [(x0, y0+i*hspacing, width, height) for i in range(n_sliders)]
-    slider_axes = [fig.add_axes(
-        c, facecolor='lightgoldenrodyellow') for c in coords]
-    for ax in slider_axes:
-        ax.spines['top'].set_visible(True)
-        ax.spines['right'].set_visible(True)
+    # coords = [(x0, y0+i*hspacing, width, height) for i in range(n_sliders)]
+    # slider_axes = [fig.add_axes(
+    #     c, facecolor='lightgoldenrodyellow') for c in coords]
+    # for ax in slider_axes:
+    #     ax.spines['top'].set_visible(True)
+    #     ax.spines['right'].set_visible(True)
 
-    ax_amp_slider = slider_axes[0]
-    ax_mod_slider = slider_axes[1]
-    ax_P0_slider = slider_axes[2]
-    ax_dP0_slider = slider_axes[3]
-    ax_Sigma_slider = slider_axes[4]
+    # ax_amp_slider = slider_axes[0]
+    # ax_mod_slider = slider_axes[1]
+    # ax_P0_slider = slider_axes[2]
+    # ax_dP0_slider = slider_axes[3]
+    # ax_Sigma_slider = slider_axes[4]
 
-    # Set range for each slider
-    lower_limit_amp = 0
-    upper_limit_amp = 1
+    # # Set range for each slider
+    # lower_limit_amp = 0
+    # upper_limit_amp = 1
 
-    lower_limit_P0 = df.period.min()
-    upper_limit_P0 = df.period.max()
+    # lower_limit_P0 = df.period.min()
+    # upper_limit_P0 = df.period.max()
 
-    lower_limit_dP0 = 100*sec_to_day
-    upper_limit_dP0 = 4000*sec_to_day
+    # lower_limit_dP0 = 100*sec_to_day
+    # upper_limit_dP0 = 4000*sec_to_day
 
-    _ = df.query('selection==1').period.values
-    lower_limit_mod = min(lower_limit_dP0, np.diff(_).min())
-    upper_limit_mod = max(upper_limit_dP0, np.diff(_).max())
+    # _ = df.query('selection==1').period.values
+    # lower_limit_mod = min(lower_limit_dP0, np.diff(_).min())
+    # upper_limit_mod = max(upper_limit_dP0, np.diff(_).max())
 
-    lower_limit_Sigma = -0.3  # -0.2 #Sigma + 0.5*Sigma
-    upper_limit_Sigma = 0.3  # 0.2 #Sigma - 0.5*Sigma
+    # lower_limit_Sigma = -0.3  # -0.2 #Sigma + 0.5*Sigma
+    # upper_limit_Sigma = 0.3  # 0.2 #Sigma - 0.5*Sigma
 
-    # Set resolution or step for each slider
-    amp_resolution = 0.01
-    mod_resolution = 0.0001
-    P0_resolution = 0.0001
-    dP0_resolution = 0.0001
-    Sigma_resolution = 0.001
+    # # Set resolution or step for each slider
+    # amp_resolution = 0.01
+    # mod_resolution = 0.0001
+    # P0_resolution = 0.0001
+    # dP0_resolution = 0.0001
+    # Sigma_resolution = 0.001
 
-    # Set initial value for each slider
-    amp_initial = 0
-    mod_initial = comb_params['dP0']
-    P0_initial = comb_params['P0']
-    dP0_initial = comb_params['dP0']
-    Sigma_initial = comb_params['Sigma']
+    # # Set initial value for each slider
+    # amp_initial = 0
+    # mod_initial = comb_params['dP0']
+    # P0_initial = comb_params['P0']
+    # dP0_initial = comb_params['dP0']
+    # Sigma_initial = comb_params['Sigma']
 
-    slider_amp = Slider(ax_amp_slider,   'ampl',         lower_limit_amp,   upper_limit_amp,
-                        valinit=amp_initial,   valfmt='%1.2f', facecolor='k', valstep=amp_resolution)
-    slider_mod = Slider(ax_mod_slider,   'mod',          lower_limit_mod,   upper_limit_mod,
-                        valinit=mod_initial,   valfmt='%1.6f d', facecolor='dodgerblue', valstep=mod_resolution)
-    slider_P0 = Slider(ax_P0_slider,    '$P_0$',        lower_limit_P0,    upper_limit_P0,
-                       valinit=P0_initial,    valfmt='%1.6f d', facecolor='gold',  valstep=P0_resolution)
-    slider_dP0 = Slider(ax_dP0_slider,   '$\Delta P_0$', lower_limit_dP0,   upper_limit_dP0,
-                        valinit=dP0_initial,   valfmt='%1.6f d', facecolor='red',  valstep=dP0_resolution)
-    slider_Sigma = Slider(ax_Sigma_slider, '$\Sigma$',     lower_limit_Sigma, upper_limit_Sigma,
-                          valinit=Sigma_initial, valfmt='%1.6f',   facecolor='red',  valstep=Sigma_resolution)
+    # slider_amp = Slider(ax_amp_slider,   'ampl',         lower_limit_amp,   upper_limit_amp,
+    #                     valinit=amp_initial,   valfmt='%1.2f', facecolor='k', valstep=amp_resolution)
+    # slider_mod = Slider(ax_mod_slider,   'mod',          lower_limit_mod,   upper_limit_mod,
+    #                     valinit=mod_initial,   valfmt='%1.6f d', facecolor='dodgerblue', valstep=mod_resolution)
+    # slider_P0 = Slider(ax_P0_slider,    '$P_0$',        lower_limit_P0,    upper_limit_P0,
+    #                    valinit=P0_initial,    valfmt='%1.6f d', facecolor='gold',  valstep=P0_resolution)
+    # slider_dP0 = Slider(ax_dP0_slider,   '$\Delta P_0$', lower_limit_dP0,   upper_limit_dP0,
+    #                     valinit=dP0_initial,   valfmt='%1.6f d', facecolor='red',  valstep=dP0_resolution)
+    # slider_Sigma = Slider(ax_Sigma_slider, '$\Sigma$',     lower_limit_Sigma, upper_limit_Sigma,
+    #                       valinit=Sigma_initial, valfmt='%1.6f',   facecolor='red',  valstep=Sigma_resolution)
 
     slider_amp.on_changed(update_amplitude_tolerance)
     slider_mod.on_changed(update_echelle)

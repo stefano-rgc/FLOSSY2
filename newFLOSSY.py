@@ -93,7 +93,7 @@ if __name__ == '__main__':
     comb_params['data'] = df
 
     # Periods in the data (observations after prewhitening) that agree with the comb within dP/4
-   GoodnesFit
+    comb_params['match'] = np.array([])
     comb_params['e_P0'] = 0
     comb_params['e_dP0'] = 0
     comb_params['e_Sigma'] = 0
