@@ -1,6 +1,8 @@
 # Needs Python 3.7+
 
+import time
 import pickle
+from telnetlib import IP
 import numpy as np
 from pyparsing import col
 import scipy
@@ -170,88 +172,7 @@ def pattern_period(P0,
 
 ##############################################################################
 
-
-def plot_comb(interactive=False, idle=True):
-
-    global ax_dp, ax_echelle, ax_pg, plotted_lines, comb_params
-
-    if interactive == True:
-        # Clear plot
-        for line in plotted_lines['comb_pg']:
-            clear_line2D(fig, line, ax_pg, redraw=False)
-        for line in plotted_lines['comb_dp']:
-            clear_line2D(fig, line, ax_dp, redraw=False)
-
-    # Compute new values
-    peaks, dpeaks = pattern_period(P0=comb_params['P0'], dP0=comb_params['dP0'],
-                                   Sigma=comb_params['Sigma'], nr=comb_params['nr'], nl=comb_params['nl'])
-    comb_params['P'] = peaks
-    comb_params['dP'] = dpeaks
-
-    _P = comb_params['P']
-    _dP = comb_params['dP']
-    freq_resolution = 2.5*(1./365)  # units of 1/day
-    dfreq = np.abs(_dP/(_P**2+_P*_dP))
-    unresolved = dfreq <= freq_resolution
-
-    # Periodogram
-    del plotted_lines['comb_pg'][:]
-    # Plot all periods but P0
-    for p, under in zip(peaks, unresolved):
-        if p != comb_params['P0']:
-            color, ls = ('r', 'solid') if not under else (
-                'darkviolet', 'dashed')
-            line = ax_pg.axvline(p, color=color, ls=ls,
-                                 alpha=0.3, lw=2, zorder=0)
-            plotted_lines['comb_pg'].append(line)
-    # Plot P0 with another color
-    line = ax_pg.axvline(
-        comb_params['P0'], color='gold', alpha=0.9, lw=2, zorder=0)
-    plotted_lines['comb_pg'].append(line)
-
-    # dP vs P plot
-    del plotted_lines['comb_dp'][:]
-    x = period_for_dP_plot(comb_params['P'], mode='middle')
-    y = np.diff(comb_params['P'])
-    xlim = ax_dp.get_xlim()
-    ylim = ax_dp.get_ylim()
-    line, = ax_dp.plot(x, y, lw=1, color='r', marker='*',
-                       ls='solid', zorder=1, alpha=0.5)
-    plotted_lines['comb_dp'].append(line)
-    # Mark the comb dP0 in the dP plot
-    if comb_params['nr'] > 1:
-        ind = np.abs(comb_params['P']-comb_params['P0']).argmin()
-        _ = comb_params['P'][ind:ind+2]
-        x = period_for_dP_plot(_, mode='middle')
-        y = np.diff(_)
-        line, = ax_dp.plot(x, y, lw=1, color='gold',
-                           marker='*', ls='None', zorder=1, alpha=0.5)
-        plotted_lines['comb_dp'].append(line)
-    ax_dp.set_xlim(xlim)
-    ax_dp.set_ylim(ylim)
-
-    # Echelle
-    update_echelle_comb()
-
-    # Redraw
-    if interactive == True:
-        if idle == True:
-            fig.canvas.draw_idle()
-        else:
-            fig.canvas.draw()
-
-##############################################################################
-
 # Update values
-
-
-def update_comb(val):
-    # Retrieve values from plot
-    comb_params['P0'] = slider_P0.val
-    comb_params['dP0'] = slider_dP0.val
-    comb_params['Sigma'] = slider_Sigma.val
-    plot_comb(interactive=True)
-
 
 def read_box_P0(text):
     P0 = np.float(text)
@@ -259,386 +180,17 @@ def read_box_P0(text):
     comb_params['P0'] = P0
     plot_comb(interactive=True)
 
-
 def read_box_dP0(text):
     dP0 = np.float(text)
     slider_dP0.set_val(dP0)
     comb_params['dP0'] = dP0
     plot_comb(interactive=True)
 
-
 def read_box_Sigma(text):
     Sigma = np.float(text)
     slider_Sigma.set_val(Sigma)
     comb_params['Sigma'] = Sigma
     plot_comb(interactive=True)
-
-##############################################################################
-
-
-def update_echelle(val):
-
-    global scatter1, scatter2, scatter3, ax_dp, ax_echelle, plotted_lines, dp
-
-    # Clear plot
-    scatter1.remove()
-    scatter2.remove()
-    scatter3.remove()
-
-    colors = [choose_color(val) for val in df.selection.values]
-    dp = slider_mod.val
-    # Observations
-    scatter1 = ax_echelle.scatter((df.period) % dp - dp, df.period,
-                                  s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-    scatter2 = ax_echelle.scatter((df.period) % dp + dp, df.period,
-                                  s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-    scatter3 = ax_echelle.scatter((df.period) % dp,      df.period,
-                                  s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-
-    for line in plotted_lines['echelle_vline']:
-        clear_line2D(fig, line, ax_echelle, redraw=False)
-    del plotted_lines['echelle_vline'][:]
-    line = ax_echelle.axvline(dp, ls='dashed', color='gray', lw=2, zorder=2)
-    plotted_lines['echelle_vline'].append(line)
-
-    update_echelle_comb()
-    ax_echelle.set_xlim(-dp, 2.*dp)
-
-    ax_echelle.set_xlabel(f'period mod {dp:.5f} (days)')
-
-    for line in plotted_lines['mdp']:
-        clear_line2D(fig, line, ax_dp, redraw=False)
-    del plotted_lines['mdp'][:]
-    line = ax_dp.axhline(dp, color='dodgerblue', lw=1, zorder=0, ls='dotted')
-    plotted_lines['mdp'].append(line)
-
-    fig.canvas.draw_idle()
-
-##############################################################################
-
-
-def read_keystroke(event):
-    '''Get the pressed key over the axes during plot visualization'''
-    ivar['keystroke'] = event.key
-
-##############################################################################
-
-
-def swap_value(x):
-    if x == 0:
-        return 1
-    elif x == 1:
-        return 0
-    else:
-        raise ValueError('Input is different from 0 and 1.')
-
-##############################################################################
-
-
-def choose_color(x):
-    if x == 0:
-        return 'lightgrey'
-    elif x == 1:
-        return 'k'
-    else:
-        raise ValueError('Input is different from 0 and 1.')
-
-##############################################################################
-
-
-def update_amplitude_tolerance(val):
-
-    global scatter1, scatter2, scatter3, df, pw, dp, plotted_lines, ax_dp, ax_echelle, ax_p
-
-    # Bounds of the current selection
-    pmin = df.query('selection==1').period.min()
-    pmax = df.query('selection==1').period.max()
-    bounds = (df.period >= pmin) & (df.period <= pmax)
-
-    # amp_max = df.query('period >= @pmin and period <= @pmax').amp.max()
-    amp_max = df[bounds].amp.max()
-    ind = df.amp/amp_max >= val
-
-    # to avoid conflict with: `slider_mod.ax.set_xlim(y.min(),y.max())`
-    if np.sum((ind & bounds)) >= 3:
-        df.loc[ind & bounds, 'selection'] = 1
-        df.loc[~ind & bounds, 'selection'] = 0
-
-    # Clear plot
-    for line in plotted_lines['selection_p']:
-        clear_line2D(fig, line, ax_p, redraw=False)
-    for line in plotted_lines['obs_dp']:
-        clear_line2D(fig, line, ax_dp, redraw=False)
-
-     # Plot prewhitening dP vs P
-    del plotted_lines['obs_dp'][:]
-    pmin = df.query('selection==1').period.min()
-    pmax = df.query('selection==1').period.max()
-    x = period_for_dP_plot(
-        df.query('period >= @pmin and period <= @pmax').period.values, mode='middle')
-    y = np.diff(df.query('period >= @pmin and period <= @pmax').period.values)
-    line, = ax_dp.plot(x, y, lw=1, color='lightgrey',
-                       ls='dashed', marker='.', zorder=2, picker=5)
-    plotted_lines['obs_dp'].append(line)
-    x = period_for_dP_plot(
-        df.query('selection==1').period.values, mode='middle')
-    y = np.diff(df.query('selection==1').period.values)
-    line, = ax_dp.plot(x, y, lw=1, color='k', ls='dashed',
-                       marker='.', zorder=2, picker=5)
-    plotted_lines['obs_dp'].append(line)
-
-    # Update the mod slider accordingly
-    if y.min() != y.max():
-        slider_mod.ax.set_xlim(y.min(), y.max())
-
-    # Plot available periods for the fit
-    del plotted_lines['selection_p'][:]
-    x = df.query('selection==1').period.values
-    y = np.repeat(0.2, x.size)
-    line, = ax_p.plot(x, y, color='k', marker=7, alpha=1,
-                      zorder=2, picker=5, ls='None')
-    plotted_lines['selection_p'].append(line)
-
-    # Plot not-available periods for the fit
-    x = df.query('selection==0').period.values
-    y = np.repeat(0.2, x.size)
-    line, = ax_p.plot(x, y, color='lightgrey', marker=7,
-                      alpha=1, zorder=2, picker=5, ls='None')
-    plotted_lines['selection_p'].append(line)
-
-    # Update ecchelle
-    scatter1.remove()
-    scatter2.remove()
-    scatter3.remove()
-    colors = [choose_color(val) for val in df.selection.values]
-    #dp = np.median(np.diff(df.period.values))
-    xlim = ax_echelle.get_xlim()
-    ylim = ax_echelle.get_ylim()
-    scatter1 = ax_echelle.scatter((df.period) % dp - dp, df.period,
-                                  s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-    scatter2 = ax_echelle.scatter((df.period) % dp + dp, df.period,
-                                  s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-    scatter3 = ax_echelle.scatter((df.period) % dp,      df.period,
-                                  s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-    update_echelle_comb()
-    ax_echelle.set_xlim(xlim)
-    ax_echelle.set_ylim(ylim)
-
-    fig.canvas.draw_idle()
-##############################################################################
-
-
-def update_selection(event):
-
-    global scatter1, scatter2, scatter3, df, pw, dp, plotted_lines, ax_dp, ax_echelle, ax_p
-
-    # Only continue if `control` is the last keystroke
-    if not ivar['keystroke'] == keystroke_i1:
-        return
-
-    # Only continue after a left click on the axis ax_p or ax_echelle
-    if not (event.mouseevent.inaxes == ax_p or event.mouseevent.inaxes == ax_echelle) or not event.mouseevent.button == 1:
-        return
-
-    # Clear plot
-    for line in plotted_lines['selection_p']:
-        clear_line2D(fig, line, ax_p, redraw=False)
-    for line in plotted_lines['obs_dp']:
-        clear_line2D(fig, line, ax_dp, redraw=False)
-
-    if event.mouseevent.inaxes == ax_p:
-        # Invert selection ### Make sure df has reset indexes
-        i = (df.period-event.mouseevent.xdata).abs().argmin()
-        df.loc[i, 'selection'] = swap_value(df.loc[i, 'selection'])
-    if event.mouseevent.inaxes == ax_echelle:
-        # Invert selection ### Make sure df has reset indexes
-        i = (df.period-event.mouseevent.ydata).abs().argmin()
-        df.loc[i, 'selection'] = swap_value(df.loc[i, 'selection'])
-
-    # Plot prewhitening dP vs P
-    del plotted_lines['obs_dp'][:]
-    pmin = df.query('selection==1').period.min()
-    pmax = df.query('selection==1').period.max()
-    x = period_for_dP_plot(
-        df.query('period >= @pmin and period <= @pmax').period.values, mode='middle')
-    y = np.diff(df.query('period >= @pmin and period <= @pmax').period.values)
-    line, = ax_dp.plot(x, y, lw=1, color='lightgrey',
-                       ls='dashed', marker='.', zorder=2, picker=5)
-    plotted_lines['obs_dp'].append(line)
-    x = period_for_dP_plot(
-        df.query('selection==1').period.values, mode='middle')
-    y = np.diff(df.query('selection==1').period.values)
-    line, = ax_dp.plot(x, y, lw=1, color='k', ls='dashed',
-                       marker='.', zorder=2, picker=5)
-    plotted_lines['obs_dp'].append(line)
-
-    # Update the mod slider accordingly
-    if y.min() != y.max():
-        slider_mod.ax.set_xlim(y.min(), y.max())
-
-    # Plot available periods for the fit
-    del plotted_lines['selection_p'][:]
-    x = df.query('selection==1').period.values
-    y = np.repeat(0.2, x.size)
-    line, = ax_p.plot(x, y, color='k', marker=7, alpha=1,
-                      zorder=2, picker=5, ls='None')
-    plotted_lines['selection_p'].append(line)
-
-    # Plot not-available periods for the fit
-    x = df.query('selection==0').period.values
-    y = np.repeat(0.2, x.size)
-    line, = ax_p.plot(x, y, color='lightgrey', marker=7,
-                      alpha=1, zorder=2, picker=5, ls='None')
-    plotted_lines['selection_p'].append(line)
-
-    # Update ecchelle
-    scatter1.remove()
-    scatter2.remove()
-    scatter3.remove()
-    colors = [choose_color(val) for val in df.selection.values]
-    #dp = np.median(np.diff(df.period.values))
-    xlim = ax_echelle.get_xlim()
-    ylim = ax_echelle.get_ylim()
-    scatter1 = ax_echelle.scatter((df.period) % dp - dp, df.period,
-                                  s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-    scatter2 = ax_echelle.scatter((df.period) % dp + dp, df.period,
-                                  s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-    scatter3 = ax_echelle.scatter((df.period) % dp,      df.period,
-                                  s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-    update_echelle_comb()
-    ax_echelle.set_xlim(xlim)
-    ax_echelle.set_ylim(ylim)
-
-    fig.canvas.draw()
-
-##############################################################################
-
-
-def update_echelle_comb(keep_xylim=False):
-
-    global scatter11, scatter22, scatter33, scatter44
-
-    if keep_xylim:
-        xlim = ax_echelle.get_xlim()
-        ylim = ax_echelle.get_ylim()
-    scatter11.remove()
-    scatter22.remove()
-    scatter33.remove()
-    scatter44.remove()
-
-    scatter11 = ax_echelle.scatter((comb_params['P'])%dp - dp, comb_params['P'], s=30, color='r', zorder=4, alpha=0.3, marker='*')
-    scatter22 = ax_echelle.scatter((comb_params['P'])%dp + dp, comb_params['P'], s=30, color='r', zorder=4, alpha=0.3, marker='*')
-    scatter33 = ax_echelle.scatter((comb_params['P'])%dp,      comb_params['P'], s=30, color='r', zorder=4, alpha=0.3, marker='*')
-    scatter44 = ax_echelle.scatter((comb_params['P0'])%dp,     comb_params['P0'], s=30, color='gold', zorder=4, alpha=0.3, marker='*')
-
-    if keep_xylim:
-        ax_echelle.set_xlim(xlim)
-        ax_echelle.set_ylim(ylim)
-
-##############################################################################
-
-
-def read_button(event):
-
-    # Only continue if the last keystroke is `control`
-    if not ivar['keystroke'] == keystroke_i1:
-        return
-
-    # Periodogram
-    if event.inaxes == ax_pg:
-        # Add 1 line
-        if event.button == 1:
-            # click on template comb's left
-            if event.xdata < comb_params['P0']:
-                comb_params['nl'] += 1
-            else:
-                comb_params['nr'] += 1
-        # Remove 1 line
-        if event.button == 3:
-            # click on template comb's left
-            if event.xdata < comb_params['P0']:
-                comb_params['nl'] -= 1
-            else:
-                comb_params['nr'] -= 1
-        # Add/Remove 5 lines
-        if event.button == 2:
-            # click on template comb's left
-            if event.xdata < comb_params['P0']:
-                comb_params['nl'] += 5 if event.xdata < comb_params['P'][0] else -5
-            else:
-                comb_params['nr'] += 5 if event.xdata > comb_params['P'][-1] else -5
-
-        # Ensure acceptable value
-        comb_params['nr'] = max(comb_params['nr'], 1)
-        comb_params['nl'] = max(comb_params['nl'], 0)
-
-    # Plot dP vs P
-    if event.inaxes == ax_dp:
-        _P0 = event.xdata - event.ydata/2
-        _dP0 = event.ydata
-        # Set P0 and dP0
-        if event.button == 1:
-            slider_P0.set_val(_P0)
-            comb_params['P0'] = _P0
-            slider_dP0.set_val(_dP0)
-            comb_params['dP0'] = _dP0
-        # Set Sigma
-        if event.button == 3:
-            Sigma = (comb_params['dP0']-_dP0) / \
-                (comb_params['P0']-_P0)  # slope formula
-            slider_Sigma.set_val(Sigma)
-            comb_params['Sigma'] = Sigma
-
-    # Correlation plot dP0 and Sigma
-    if event.inaxes == ax_dP0Sigma:
-        # Set dP0 and Sigma
-        if event.button == 1:
-            slider_dP0.set_val(event.xdata)
-            comb_params['dP0'] = event.xdata
-            slider_Sigma.set_val(event.ydata)
-            comb_params['Sigma'] = event.ydata
-
-    # Correlation plot P0 and dP0
-    if event.inaxes == ax_P0dP0:
-        # Set P0 and dP0
-        if event.button == 1:
-            slider_P0.set_val(event.xdata)
-            comb_params['P0'] = event.xdata
-            slider_dP0.set_val(event.ydata)
-            comb_params['dP0'] = event.ydata
-
-    # Correlation plot Sigma and P0
-    if event.inaxes == ax_SigmaP0:
-        # Set Sigma and P0
-        if event.button == 1:
-            slider_Sigma.set_val(event.xdata)
-            comb_params['Sigma'] = event.xdata
-            slider_P0.set_val(event.ydata)
-            comb_params['P0'] = event.ydata
-
-    # Plot P0
-    if event.inaxes == ax_P0:
-        # Set P0
-        if event.button == 1:
-            slider_P0.set_val(event.xdata)
-            comb_params['P0'] = event.xdata
-
-    # Plot dP0
-    if event.inaxes == ax_dP0:
-        # Set dP0
-        if event.button == 1:
-            slider_dP0.set_val(event.xdata)
-            comb_params['dP0'] = event.xdata
-
-    # Plot Sigma
-    if event.inaxes == ax_Sigma:
-        # Set Sigma
-        if event.button == 1:
-            slider_Sigma.set_val(event.xdata)
-            comb_params['Sigma'] = event.xdata
-
-    plot_comb(interactive=True)
-
 
 ##############################################################################
 
@@ -980,7 +532,6 @@ def explore_results2(event):
 
 ##############################################################################
 
-
 def compute_S_on_grid(M):
     '''compute S for all parameter space M'''
 #     global P0_grid,dP0_grid,Sigma_grid, args
@@ -1019,167 +570,12 @@ def save(event):
 
 ##############################################################################
 
-
-def onselect(vmin, vmax):
-
-    global df, pw, dp, scatter1, scatter2, scatter3
-
-    # If interactive is on
-    if ivar['keystroke'] == keystroke_i2 and vmin != vmax:
-
-        if df.query('period > @vmin and period < @vmax').period.size > 0:
-
-            # Clear plot
-            for line in plotted_lines['selection_p']:
-                clear_line2D(fig, line, ax_p, redraw=False)
-            for line in plotted_lines['obs_dp']:
-                clear_line2D(fig, line, ax_dp, redraw=False)
-
-            i = (df.period > vmin) & (df.period < vmax)
-            df.loc[i, 'selection'] = 1
-            df.loc[~i, 'selection'] = 0
-
-            # Plot prewhitening dP vs P
-            del plotted_lines['obs_dp'][:]
-            xlim = ax_dp.get_xlim()
-            ylim = ax_dp.get_ylim()
-            x = period_for_dP_plot(
-                df.query('selection==1').period.values, mode='middle')
-            y = np.diff(df.query('selection==1').period.values)
-            line, = ax_dp.plot(x, y, lw=1, color='k',
-                               ls='dashed', marker='.', zorder=2, picker=5)
-            plotted_lines['obs_dp'].append(line)
-            ax_dp.set_xlim(xlim)
-            ax_dp.set_ylim(ylim)
-
-            # Update the mod slider accordingly
-            if y.min() != y.max():
-                slider_mod.ax.set_xlim(y.min(), y.max())
-
-            # Plot available periods for the fit
-            del plotted_lines['selection_p'][:]
-            x = df.query('selection==1').period.values
-            y = np.repeat(0.2, x.size)
-            line, = ax_p.plot(x, y, color='k', marker=7,
-                              alpha=1, zorder=2, picker=5, ls='None')
-            plotted_lines['selection_p'].append(line)
-
-            # Plot not-available periods for the fit
-            x = df.query('selection==0').period.values
-            y = np.repeat(0.2, x.size)
-            line, = ax_p.plot(x, y, color='lightgrey', marker=7,
-                              alpha=1, zorder=2, picker=5, ls='None')
-            plotted_lines['selection_p'].append(line)
-
-            # Update ecchelle
-            scatter1.remove()
-            scatter2.remove()
-            scatter3.remove()
-            colors = [choose_color(val) for val in df.selection.values]
-            scatter1 = ax_echelle.scatter((df.period) % dp - dp, df.period, s=100.*(
-                df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-            scatter2 = ax_echelle.scatter((df.period) % dp + dp, df.period, s=100.*(
-                df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-            scatter3 = ax_echelle.scatter((df.period) % dp,      df.period, s=100.*(
-                df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-
-            slider_P0.ax.set_xlim(vmin, vmax)
-            ax_echelle.set_ylim(vmin, vmax)
-
-            fig.canvas.draw()
-
-##############################################################################
-
-
-def clear_line2D(Figure, Line2D, Axes, redraw=True):
-    '''Check if the given Line2D is part of the axis. If yes, remove it from the axis'''
-    if np.isin(Line2D, Axes.lines):
-        Axes.lines.remove(Line2D)
-        if redraw == True:
-            Axes.legend(loc='best', ncol=1, framealpha=0.5, fontsize=10)
-            Figure.canvas.draw()
-
 # Constants:
 sec_to_day = 1/(3600*24)
 
 # Main function:
 def interactive_search():
     pass
-
-class Interactivity:
-    def __init__(self, fig = None):
-        self.fig = plt.gcf() if fig is None else fig
-        self.ax = self.fig.gca()
-        self.connections = ()
-        self.key = None
-
-    def __enter__(self):
-        self.connect()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.disconnect()
-
-    def connect(self):
-        """ Install the event handlers for the plot. """
-        self.connections = (
-            self.fig.canvas.mpl_connect('button_press_event', self.onclick),
-            self.fig.canvas.mpl_connect('pick_event', self.onpick),
-            self.fig.canvas.mpl_connect('key_press_event', self.onkey),
-        )
-
-    def disconnect(self):
-        """ Uninstall the event handlers for the plot. """
-        for connection in self.connections:
-            self.fig.canvas.mpl_disconnect(connection)
-
-    def draw_line(self, startx, starty):
-        pass
-    #     xy = plt.ginput(1)
-    #     x = [startx, xy[0][0]]
-    #     y = [starty, xy[0][1]]
-    #     self.ax.plot(x, y, picker=True, pickradius=5, color='blue')
-    #     self.ax.figure.canvas.draw_idle()
-
-    def onclick(self, event):
-        """
-        This implements click functionality. If it's a double click do
-        something, else ignore.
-        Once in the double click block, if its a left click, wait for a further
-        click and draw a line between the double click co-ordinates and that
-        click (using ginput(1) - the 1 means wait for one mouse input - a
-        higher number is used to get multiple clicks to define a polyline)
-        """
-        print('onclick')
-        # if event.dblclick:
-        #     if event.button == 1:
-        #         self.draw_line(event.xdata, event.ydata)
-
-
-    def onpick(self, event):
-        """
-        Handles the pick event - if an object has been picked, store a
-        reference to it.  We do this by simply adding a reference to it
-        named 'picked_object' to the axes object.
-        """
-        print('onpick')
-        # this_artist = event.artist
-        # # the picked object is available as event.artist
-        # self.ax.picked_object = this_artist
-
-    def onkey(self, event):
-        """
-        Function to be bound to the key press event
-        If the key pressed is delete and there is a picked object,
-        remove that object from the canvas
-        """
-        print('onkey: ', event.key)
-        self.key = event.key
-        # if event.key == 'delete' and self.ax.picked_object:
-        #     self.ax.picked_object.remove()
-        #     self.ax.picked_object = None
-        #     self.ax.figure.canvas.draw_idle()
-        pass
 
 # @u.quantity_input
 def freq2period_resolution(freq, freq_resolution):
@@ -1309,7 +705,10 @@ class LinearPSP:
         self.Sigma = Sigma
         self.nr = nr
         self.nl = nl
-        self.p, self.dp = pattern_period(P0,dP0,Sigma,nr,nl)
+        self.generatePSP()
+        
+    def generatePSP(self):
+        self.p, self.dp = pattern_period(self.P0,self.dP0,self.Sigma,self.nr,self.nl)
         # self.goodnesFit = GoodnesFit()
 
 class GoodnesFit:
@@ -1325,12 +724,14 @@ class IPlot:
     """Class to handle the interactive plot"""
 
     def __init__(self, pw, pg, freq_resolution):
+        
+        class Plot:
+            """Namespace plot output"""
+            pass
+        
         self.pw = pw.copy() # TODO: Check if copy is not necessary
         self.pg = pg
         self.freq_resolution = freq_resolution
-        
-        # Interavtivity
-        self.key = None
         
         # Parse the raw data
         self.parse_pw()
@@ -1343,91 +744,332 @@ class IPlot:
         # colorOnOff = {0: 'lightgrey', 1: 'k'}
         self._colorOnOff = pd.Series(data=['lightgrey', 'k'], index=[0,1])
 
-        self.plot_p()
-        self.plot_pg()
-        self.add_p2pg()
-        self.plot_dp()
-        self.plot_echelle()
-        self.add_mdp2dp()
-        self.PSP.add2echelle()
-        self.PSP.add2pg()
-        self.PSP.add2dp()
-        # self.addSliders()
-                
+        # Plot containers
+        self.plots = Plot() 
+        self.plots.echelle_vline1 = None
+        self.plots.echelle_vline2 = None
+        self.plots.p_scatter_0 = None
+        self.plots.p_scatter_1 = None
+        self.plots.p_scatter_2 = None
+        self.plots.p_scatter_3 = None
+        self.plots.p_lines = None
+        self.plots.data2Dline_ax_pg = None
+        self.plots.PSP_pg_lines = None
+        self.plots.PSP_pg_vline = None
+        self.plots.PSP_dp_lines = None
+        self.plots.PSP_dp_dot = None
+        self.plots.PSP_echelle_scatter_1 = None
+        self.plots.PSP_echelle_scatter_2 = None
+        self.plots.PSP_echelle_scatter_3 = None
+        self.plots.dp_hline = None
+        
+        # Interavtivity
+        self.enableSliders()
+        self.picked_object = None
+        self.mouse_down = False
+        self.interaction = 'no'
+        self.lineStyle_dp = 'dashed'
+        self.window_pmin = self.pw.period.min()
+        self.window_pmax = self.pw.period.max()
         # self.fig = plt.gcf() if fig is None else fig
         # self.ax = self.fig.gca()
         self.connections = ()
+        self.selectionSpan()
+        
+        self.plot_data(plot_pg=True)
+        self.plot_module_p()
+        self.plot_PSP()
 
-    # def __enter__(self):
-    #     self.connect()
-    #     return self
+    def __enter__(self):
+        self.connect()
+        return self
 
-    # def __exit__(self, exc_type, exc_val, exc_tb):
-    #     self.disconnect()
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.disconnect()
 
-    # def connect(self):
-    #     """ Install the event handlers for the plot. """
-    #     self.connections = (
-    #         self.fig.canvas.mpl_connect('button_press_event', self.onclick),
-    #         self.fig.canvas.mpl_connect('pick_event', self.onpick),
-    #         self.fig.canvas.mpl_connect('key_press_event', self.onkey),
-    #     )
+    def connect(self):
+        """ Install the event handlers for the plot. """
+        print('CONECTED')
+        self.connections = (
+            self.fig.canvas.mpl_connect('button_press_event', self.on_click),
+            self.fig.canvas.mpl_connect('pick_event', self.on_pick),
+            self.fig.canvas.mpl_connect('key_press_event', self.on_key),
+        )
 
-    # # def disconnect(self):
-    #     """ Uninstall the event handlers for the plot. """
-    #     for connection in self.connections:
-    #         self.fig.canvas.mpl_disconnect(connection)
+    def disconnect(self):
+        """ Uninstall the event handlers for the plot. """
+        for connection in self.connections:
+            self.fig.canvas.mpl_disconnect(connection)
 
-    # def draw_line(self, startx, starty):
-    #     # xy = plt.ginput(1)
-    #     # x = [startx, xy[0][0]]
-    #     # y = [starty, xy[0][1]]
-    #     # self.ax.plot(x, y, picker=True, pickradius=5, color='blue')
-    #     # self.ax.figure.canvas.draw_idle()
-    #     pass
+    def on_click(self, event):
+
+        if not self.interaction == 'pick':
+            return
+
+        # Periodogram
+        if event.inaxes == self.axs.pg:
+            nl = self.PSP.nl
+            nr = self.PSP.nr
+            # Add 1 line
+            if event.button == 1:
+                # click to the left of the linear PSP
+                if event.xdata < self.PSP.P0:
+                    nl += 1
+                else:
+                    nr += 1
+            # Remove 1 line
+            if event.button == 3:
+                # click to the left of the linear PSP
+                if event.xdata < self.PSP.P0:
+                    nl -= 1
+                else:
+                    nr -= 1
+            # Add/Remove 5 lines
+            if event.button == 2:
+                # click inside or outside of the left side of the linear PSP
+                if event.xdata < self.PSP.P0:
+                    nl += 5 if event.xdata < self.PSP.p[0] else -5
+                else:
+                    nr += 5 if event.xdata > self.PSP.p[-1] else -5
+
+            # Ensure acceptable value
+            self.PSP.nl = max(nl, 0)
+            self.PSP.nr = max(nr, 2)
+                
+            # self.PSP.nr = max(self.PSP.nr, 1) # 21 OK
+            # self.PSP.nl = max(self.PSP.nl, 1)
+
+        # Plot dP vs P
+        if event.inaxes == self.axs.dp:
+            P0 = event.xdata - event.ydata/2
+            dP0 = event.ydata
+            # Set P0 and dP0
+            if event.button == 1:
+                self.sliders.P0.set_val(P0)
+                self.PSP.P0 = P0
+                self.sliders.dP0.set_val(dP0)
+                self.PSP.dP0 = dP0
+            # Set Sigma
+            if event.button == 3:
+                Sigma = (self.PSP.dP0-dP0) / (self.PSP.P0-P0)  # slope formula
+                self.sliders.Sigma.set_val(Sigma)
+                self.PSP.Sigma = Sigma
+
+        # Correlation plot dP0 and Sigma
+        if event.inaxes == self.axs.dP0Sigma:
+            # Set dP0 and Sigma
+            if event.button == 1:
+                self.sliders.dP0.set_val(event.xdata)
+                self.PSP.dP0 = event.xdata
+                self.sliders.Sigma.set_val(event.ydata)
+                self.PSP.Sigma = event.ydata
+
+        # Correlation plot P0 and dP0
+        if event.inaxes == self.axs.P0dP0:
+            # Set P0 and dP0
+            if event.button == 1:
+                self.sliders.P0.set_val(event.xdata)
+                self.PSP.P0 = event.xdata
+                self.sliders.dP0.set_val(event.ydata)
+                self.PSP.dP0 = event.ydata
+
+        # Correlation plot Sigma and P0
+        if event.inaxes == self.axs.SigmaP0:
+            # Set Sigma and P0
+            if event.button == 1:
+                self.sliders.Sigma.set_val(event.xdata)
+                self.PSP.Sigma = event.xdata
+                self.sliders.P0.set_val(event.ydata)
+                self.PSP.P0 = event.ydata
+
+        # Plot P0
+        if event.inaxes == self.axs.P0:
+            # Set P0
+            if event.button == 1:
+                self.sliders.P0.set_val(event.xdata)
+                self.PSP.P0 = event.xdata
+
+        # Plot dP0
+        if event.inaxes == self.axs.dP0:
+            # Set dP0
+            if event.button == 1:
+                self.sliders.dP0.set_val(event.xdata)
+                self.PSP.dP0 = event.xdata
+
+        # Plot Sigma
+        if event.inaxes == self.axs.Sigma:
+            # Set Sigma
+            if event.button == 1:
+                self.sliders.Sigma.set_val(event.xdata)
+                self.PSP.Sigma = event.xdata
+
+        # Generate and plot linear PSP
+        self.PSP.generatePSP()
+        self.plot_PSP()
+          
+    def on_pick(self, event):
+        
+        in_ax_p = event.mouseevent.inaxes == self.axs.p
+        in_ax_echelle = event.mouseevent.inaxes == self.axs.echelle
+        pick_mode = self.interaction == 'pick'
+
+        print('picker 0')
+
+        if not pick_mode:
+            return
+        if not (in_ax_p or in_ax_echelle):
+            return
+        
+        pw = self.pw
+        
+        print('picker 1')
+        
+        # Swap picked period
+        if in_ax_p:
+            i = (pw.period-event.mouseevent.xdata).abs().argmin()
+        elif in_ax_echelle:
+            i = (pw.period-event.mouseevent.ydata).abs().argmin()
+        swap = {0:1, 1:0}
+        pw.loc[i,'selection'] = swap[pw.loc[i,'selection']]
+
+        print('picker 2')
+
+        # Update data plots
+        self.plot_data(echelle_keep_xlim_ylim=True)
+
+        print('picker 3')
+
+        # Update the module period slider accordingly
+        dp = np.diff(pw.query('selection==1').period.values)
+        if dp.min() != dp.max():
+            ax = self.axs.sliders.module_p
+            slider = self.sliders.module_p
+            valinit = slider.val
+            self.update_slider(ax, slider, dp.min(), dp.max(), valinit)
+
+    def on_key(self, event):
+        # Interactive modes
+        if event.key=='enter':
+            self.interaction = 'pick'
+        elif event.key=='shift+enter':
+            self.interaction = 'span'
+        else:
+            self.interaction = 'no'
+        # Toggle line style for dp plot
+        if event.key=='x':
+            swap = {'dashed':'None', 'None':'dashed'}
+            self.lineStyle_dp = swap[self.lineStyle_dp]
+            self.plot_dp(ls=self.lineStyle_dp)
+
+    # Set of functions to add and remove data from axes
+    def plot_data(self, plot_pg=False, echelle_keep_xlim=False, echelle_keep_ylim=False, echelle_keep_xlim_ylim=False):
+        if plot_pg:
+            self.plot_pg()
+        self.plot_p()
+        self.add_p2pg()
+        self.plot_dp()
+        self.plot_echelle(keep_xlim=echelle_keep_xlim, keep_ylim=echelle_keep_ylim, keep_xlim_ylim=echelle_keep_xlim_ylim)
+
+    # Set of functions to add and remove PSP from axes
+    def plot_PSP(self):
+        self.PSP.add2pg()
+        self.PSP.add2dp()
+        self.PSP.add2echelle()
+
+    def update_axes_echelle(self, **kwargs):
+        self.plot_echelle(**kwargs)
+        self.PSP.add2echelle()
+        self.plot_module_p()
+        self.axs.echelle.set_xlabel(f'period mod {self.module_dp:.5f} (days)') # * Repeated line in format()
+
+    def update_slider(self, ax, slider, vmin, vmax, valinit):
+        slider.valmin = vmin
+        slider.valmax = vmax
+        ax.set_xlim(slider.valmin,slider.valmax)
+        slider.set_val(valinit)
+        slider.valtext.set_text(slider.valfmt%valinit)
+
+    def onselect2(self, vmin, vmax):
+        print('Span selection: ', vmin, vmax)
+        if self.interaction == 'span' and vmin != vmax:
+            print('print 1')
+            query = 'period>@vmin and period<@vmax'
+            pw = self.pw.query(query)
+            if pw.period.size > 0:
+                self.window_pmin = vmin
+                self.window_pmax = vmax
+                i = (self.pw.period > vmin) & (self.pw.period < vmax)
+                self.pw.selection = 0
+                self.pw.loc[i, 'selection'] = 1
+                # Clear plots
+                print('print 2')
+                xlim = self.axs.pg.get_xlim()
+                self.plot_data(echelle_keep_xlim_ylim=True)
+                self.axs.pg.set_xlim(xlim)
+                print('print 4')
+                # Update slider P0
+                ax = self.axs.sliders.P0
+                slider = self.sliders.P0
+                valinit = slider.val
+                self.update_slider(ax, slider, vmin, vmax, valinit)
+                # Update slider module period
+                print('print 5')
+                p = self.pw.query('selection==1').period.values
+                dp = np.diff(p)
+                ax = self.axs.sliders.module_p
+                slider = self.sliders.module_p
+                vmin = dp.min()/3
+                vmax = dp.max()*2
+                valinit = (vmin+vmax)/2
+                self.update_slider(ax, slider, vmin, vmax, valinit)
     
+    def selectionSpan(self):        
+        # Properties of the rectangle-span area-selector
+        rect_props = dict(facecolor='grey', alpha=0.20)
+        # Area selector
+        self.span = mwidgets.SpanSelector(self.axs.pg, self.onselect2, 'horizontal', rectprops=rect_props, useblit=False)
 
-    # def onclick(self, event):
-    #     """
-    #     This implements click functionality. If it's a double click do
-    #     something, else ignore.
-    #     Once in the double click block, if its a left click, wait for a further
-    #     click and draw a line between the double click co-ordinates and that
-    #     click (using ginput(1) - the 1 means wait for one mouse input - a
-    #     higher number is used to get multiple clicks to define a polyline)
-    #     """
-    #     print('onclick')
-    #     # if event.dblclick:
-    #     #     if event.button == 1:
-    #     #         self.draw_line(event.xdata, event.ydata)
+    def ampl_threshold(self,val):
+        # Find periods above threshold and within the window
+        pw = self.pw
+        pmin = self.window_pmin
+        pmax = self.window_pmax
+        query = 'period>@pmin and period<@pmax'
+        ampl_max = pw.query(query).ampl.max()
+        i = (pw.ampl/ampl_max >= val) & (pw.period >= pmin) & (pw.period <= pmax)
+        # Leave at least two periods
+        if pw[i].period.size >= 2:
+            # Apply threshold
+            pw.selection = 0
+            pw.loc[i, 'selection'] = 1
+            # Update p in plot
+            xlim = self.axs.pg.get_xlim()
+            self.plot_data(echelle_keep_xlim_ylim=True)
+            self.axs.pg.set_xlim(xlim)
+        
+    def sliderAction_P0(self,val):
+        self.PSP.P0 = val
+        self.PSP.generatePSP()
+        self.plot_PSP()
+    def sliderAction_dP0(self,val):
+        self.PSP.dP0 = val
+        self.PSP.generatePSP()
+        self.plot_PSP()
+    def sliderAction_Sigma(self,val):
+        self.PSP.Sigma = val
+        self.PSP.generatePSP()
+        self.plot_PSP()
 
+    def update_module_p(self,val):
+        self.module_dp = val
+        self.update_axes_echelle(keep_ylim=True)
 
-    # def onpick(self, event):
-    #     """
-    #     Handles the pick event - if an object has been picked, store a
-    #     reference to it.  We do this by simply adding a reference to it
-    #     named 'picked_object' to the axes object.
-    #     """
-    #     print('onpick')
-    #     # this_artist = event.artist
-    #     # # the picked object is available as event.artist
-    #     # self.ax.picked_object = this_artist
-    #     pass
-
-    # def onkey(self, event):
-    #     """
-    #     Function to be bound to the key press event
-    #     If the key pressed is delete and there is a picked object,
-    #     remove that object from the canvas
-    #     """
-    #     print('onkey: ', event.key)
-    #     self.key = event.key
-    #     # if event.key == 'delete' and self.ax.picked_object:
-    #     #     self.ax.picked_object.remove()
-    #     #     self.ax.picked_object = None
-    #     #     self.ax.figure.canvas.draw_idle()
-    #     pass
-
+    def enableSliders(self):
+        self.sliders.ampl.on_changed(self.ampl_threshold)
+        self.sliders.module_p.on_changed(self.update_module_p)
+        self.sliders.P0.on_changed(self.sliderAction_P0)
+        self.sliders.dP0.on_changed(self.sliderAction_dP0)
+        self.sliders.Sigma.on_changed(self.sliderAction_Sigma)
 
     class LinearPSP(LinearPSP):
         def __init__(self,outer_instance,P0,dP0,Sigma=0,nr=5,nl=5):
@@ -1435,50 +1077,62 @@ class IPlot:
             self.outer_instance = outer_instance
 
         def add2echelle(self):
+            # Clear plot if
+            if self.outer_instance.plots.PSP_echelle_scatter_1:
+                self.outer_instance.plots.PSP_echelle_scatter_1.remove()
+            if self.outer_instance.plots.PSP_echelle_scatter_2:
+                self.outer_instance.plots.PSP_echelle_scatter_2.remove()
+            if self.outer_instance.plots.PSP_echelle_scatter_3:
+                self.outer_instance.plots.PSP_echelle_scatter_3.remove()
             ax = self.outer_instance.axs.echelle
             p = self.p
             module_dp = self.outer_instance.module_dp
             color = 'r'
             size = 30
-            ax.scatter(p%module_dp-module_dp, p, s=size, color=color, zorder=3, picker=5)
-            ax.scatter(p%module_dp+module_dp, p, s=size, color=color, zorder=3, picker=5)
-            ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
+            self.outer_instance.plots.PSP_echelle_scatter_1 = ax.scatter(p%module_dp-module_dp, p, s=size, color=color, zorder=3, picker=5)
+            self.outer_instance.plots.PSP_echelle_scatter_2 = ax.scatter(p%module_dp+module_dp, p, s=size, color=color, zorder=3, picker=5)
+            self.outer_instance.plots.PSP_echelle_scatter_3 = ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
 
         def add2pg(self):
+            # Clear plot if
+            if self.outer_instance.plots.PSP_pg_vline:
+                self.outer_instance.plots.PSP_pg_vline.remove()
+            # Clear plot if
+            if self.outer_instance.plots.PSP_pg_lines:            
+                for line in self.outer_instance.plots.PSP_pg_lines:
+                    line.remove()
+                    
             ax = self.outer_instance.axs.pg
             trans = tx.blended_transform_factory(ax.transData, ax.transAxes)
             p = self.p
             P0 = self.P0
-            ax.plot(np.repeat(p, 3), np.tile([0, 1, np.nan], len(p)), color='r', alpha=0.3, lw=2, zorder=0, transform=trans)
+            self.outer_instance.plots.PSP_pg_lines = ax.plot(np.repeat(p, 3), np.tile([0, 1, np.nan], len(p)), color='r', alpha=0.3, lw=2, zorder=0, transform=trans)
             # Overplot P0 with a different color
-            ax.axvline(P0, color='gold', alpha=0.9, lw=2, zorder=0)
+            self.outer_instance.plots.PSP_pg_vline = ax.axvline(P0, color='gold', alpha=0.9, lw=2, zorder=0)
 
         def add2dp(self):
+            # Clear plot if
+            if self.outer_instance.plots.PSP_dp_lines:            
+                for line in self.outer_instance.plots.PSP_dp_lines:
+                    line.remove()
+            if self.nr >= 2: # Ensure that there is at least two periods to the right
+                if self.outer_instance.plots.PSP_dp_dot:            
+                    for line in self.outer_instance.plots.PSP_dp_dot:
+                        line.remove()
+
             ax = self.outer_instance.axs.dp
             p = self.p
             x = period_for_dP_plot(p, mode='middle')
             y = np.diff(p)
-            ax.plot(x, y, lw=1, color='r', marker='*', ls='solid', zorder=1, alpha=0.5)
+            self.outer_instance.plots.PSP_dp_lines = ax.plot(x, y, lw=1, color='r', marker='*', ls='solid', zorder=1, alpha=0.5)
+            # self.outer_instance.plots.PSP_echelle_scatter_3 = ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
             # Overplot dp associated with P0 with a different color
-            if self.nr > 1:
+            if self.nr >= 1:
                 i = np.abs(self.p-self.P0).argmin()
                 period_pair = self.p[i:i+2]
                 x = period_for_dP_plot(period_pair, mode='middle')
                 y = np.diff(period_pair)
-                ax.plot(x, y, lw=1, color='gold', marker='*', ls='None', zorder=1, alpha=0.5)
-            
-            
-    def plot_dp(self):
-        ax = self.axs.dp
-        p = self.pw.query('selection==1').period.values
-        x = period_for_dP_plot(p, mode='middle')
-        y = np.diff(p)
-        ax.plot(x, y, lw=1, color='k', ls='dashed', marker='.', zorder=2, picker=5)
-        # Mark level zero
-        ax.axhline(0, ls='dotted', lw=0.5, color='gray') 
-
-            
-            
+                self.outer_instance.plots.PSP_dp_dot = ax.plot(x, y, lw=1, color='gold', marker='*', ls='None', zorder=1, alpha=0.5)
 
     def parse_pw(self):
         # Estimate a module dp
@@ -1486,7 +1140,7 @@ class IPlot:
         # Estimate a linear PSP of 10 periods around the dominant period 
         self.dominant_p = self.pw.query('ampl == ampl.max()').period.values.item()
         self.PSP = self.LinearPSP(self,self.dominant_p,self.module_dp)
-        
+    
     def format(self):
         """Format the layout by adding label and tweaks to the axes"""
         def fig_and_axs():
@@ -1505,7 +1159,7 @@ class IPlot:
             self.axs.dp.set_xlabel('period (days)')
             self.axs.dp.set_ylabel('$\Delta P$ (days)')
             self.axs.echelle.set_ylabel('period (days)')
-            self.axs.echelle.set_xlabel(f'period mod {self.module_dp:.5f} (days)')
+            self.axs.echelle.set_xlabel(f'period mod {self.module_dp:.5f} (days)') # * Repeated line in update_echelle()
             self.axs.P0dP0.set_xlabel('$P_0$')
             self.axs.P0dP0.set_ylabel('$\Delta P_0$')
             self.axs.P0.set_xlabel('$P_0$')
@@ -1520,7 +1174,7 @@ class IPlot:
             self.axs.Sigma.set_ylabel('min $S$')
 
             # Visibility
-            self.axs.buttons.axis('off')
+            self.axs.allButtons.axis('off')
             self.axs.p.axis('off')
             self.axs.pg.get_xaxis().set_visible(False)
 
@@ -1557,8 +1211,10 @@ class IPlot:
                 ax.set_xlim(slider.valmin,slider.valmax)
                 slider.label.set_text(label)
                 slider.set_val(valinit)
+                # valinit = valfmt%self.PSP.P0
                 # slider.val(valinit)
                 slider.valfmt = valfmt
+                slider.valtext.set_text(valfmt%valinit)
                 # ax.set_facecolor(facecolor)
                 slider.poly.set_fc(facecolor)
                 slider.valstep = valstep
@@ -1652,7 +1308,7 @@ class IPlot:
             axs.echelle = fig.add_subplot(mainRow0_mainCol1_main3Rows[1:])
             
             # Row 1: Buttons
-            axs.buttons = fig.add_subplot(main5Rows[1])
+            axs.allButtons = fig.add_subplot(main5Rows[1])
 
             # Row 2: Landscape with color bat at the top
             mainRow2_main3Cols = main5Rows[2].subgridspec(1, 3, width_ratios=[1, 1, 1], wspace=0.3)
@@ -1723,21 +1379,94 @@ class IPlot:
             ax = self.axs.sliders.Sigma
             self.sliders.Sigma = Slider(ax, '', 0, 1)
 
+        def buttons():
+            class Buttons:
+                """Namespace for buttons"""
+                pass
+            class Boxes:
+                """Namespace for boxes"""
+                pass
+            # Build interface: Buttons, checkbox and textbox
+
+            height = 0.02
+            width = 0.1
+            dwidth = 0.01
+            button_x0 = 0.10
+            # button_y0 = 0.07
+
+            ypos = self.axs.allButtons.get_position().y0 + self.axs.allButtons.get_position().height/2
+            xpos = button_x0+0*(width+dwidth)
+            # ypos = 0.07
+            # ypos = 0.4
+            # ax_buttins is now axs.buttons
+            # <<--------------|
+            
+            # Crate buttons, boxes and its axes
+            self.axs.buttons = Buttons()
+            self.axs.boxes = Boxes()
+            
+            self.axs.buttons.fit = button_fit = Button(plt.axes([xpos, ypos, width, height]), 'Fit')
+            self.axs.buttons.fit.on_clicked(do_fit3)
+
+            xpos = button_x0+0*(width+dwidth)
+            self.axs.buttons.explore = Button(plt.axes([xpos, ypos-height, width, height]), 'Explore result')  # <<--------------|
+            self.axs.buttons.explore.on_clicked(explore_results2)
+
+            xpos = button_x0+1*(width+dwidth)
+            self.axs.buttons.save = Button(plt.axes([xpos, ypos, width, height]), 'Save')
+            self.axs.buttons.save.on_clicked(save)
+
+            # Boxes
+            xpos = button_x0+2*(width+dwidth)
+            ax_box_mismatch = plt.axes([xpos, ypos, width, height])
+            text_box_mismatch = TextBox(ax_box_mismatch, "", initial='0', color='lightgoldenrodyellow')
+            ax_box_mismatch.set_title('Mismatch', y=-1.0)
+
+            xpos = button_x0+3*(width+dwidth)
+            ax_box_residuals = plt.axes([xpos, ypos, width, height])
+            text_box_residuals = TextBox(ax_box_residuals, "", initial='0', color='lightgoldenrodyellow')
+            ax_box_residuals.set_title('Residuals (d)', y=-1.0)
+
+            xpos = button_x0+4*(width+dwidth)
+            ax_box_P0 = self.fig.add_axes([xpos, ypos, width, height])
+            text_box_P0 = TextBox(ax_box_P0, "", initial='0')
+            cid_box_P0 = text_box_P0.on_submit(read_box_P0)
+            ax_box_P0.set_title('$P_0$ (d)', y=-1.0)
+
+            xpos = button_x0+5*(width+dwidth)
+            ax_box_dP0 = self.fig.add_axes([xpos, ypos, width, height])
+            text_box_dP0 = TextBox(ax_box_dP0, "", initial='0')
+            cid_box_dP0 = text_box_dP0.on_submit(read_box_dP0)
+            ax_box_dP0.set_title('$\Delta P_0$ (d)', y=-1.0)
+
+            xpos = button_x0+6*(width+dwidth)
+            ax_box_Sigma = self.fig.add_axes([xpos, ypos, width, height])
+            text_box_Sigma = TextBox(ax_box_Sigma, "", initial='0')
+            cid_box_Sigma = text_box_Sigma.on_submit(read_box_Sigma)
+            ax_box_Sigma.set_title('$\Sigma$', y=-1.0)
+            
+            
+            
         # Create the figure and its axis
         fig_and_axs()
         # Create the sliders of the figure
         sliders()
+        # Create the buttons of the figure
+        buttons()
         
-    def plot_p(self):
+    def plot_p(self, pw=None):
+        if pw is None:
+            pw = self.pw
+            
+        # Clear plot if
+        if self.plots.p_scatter_0:
+            self.plots.p_scatter_0.remove()
+
         ax = self.axs.p
-        for selection in [0,1]:
-            x = self.pw.query('selection==@selection').period.values
-            y = np.repeat(0.2, x.size)
-            color = self._colorOnOff[selection]
-            ax.plot(x, y, color=color, marker=7, alpha=1, zorder=2, picker=5, ls='None')
-        
-        # Redraw
-        # self.fig.canvas.draw_idle()
+        x = pw.period.values
+        y = np.repeat(0.2, x.size)
+        color = self._colorOnOff[pw.selection.values]
+        self.plots.p_scatter_0 = ax.scatter(x, y, c=color, marker=7, alpha=1, zorder=2, picker=5)
 
     def plot_pg(self):
         ax = self.axs.pg
@@ -1754,61 +1483,94 @@ class IPlot:
         xlim2 = self.pw.period.max()+pmax_freq_resolution
         ax.set_xlim(xlim1, xlim2)
         
-    def add_p2pg(self):
+    def add_p2pg(self, pw=None):
+        if pw is None:
+            pw = self.pw
+
+        # Clear plot if
+        if self.plots.p_lines:            
+            for line in self.plots.p_lines:
+                line.remove()
+
         ax = self.axs.pg
         trans = tx.blended_transform_factory(ax.transData, ax.transAxes)
-        p = self.pw.period.values
-        ax.plot(np.repeat(p, 3), np.tile([0, 1, np.nan], len(p)), lw=1, ls='dotted', color='k', transform=trans)
+        p = pw.query('selection==1').period.values
+        # line, = ax.plot(np.repeat(p, 3), np.tile([0, 1, np.nan], len(p)), lw=1, ls='dotted', color='k', transform=trans)
+        # self.plots.p_lines = []
+        # self.plots.p_lines.append(line)
+        line = ax.plot(np.repeat(p, 3), np.tile([0, 1, np.nan], len(p)), lw=1, ls='dotted', color='k', transform=trans)
+        self.plots.p_lines = line
+        
+    def plot_dp(self, pw=None, ls='dashed'):
+        if pw is None:
+            pw = self.pw
+            
+        # Clear plot if
+        if self.plots.data2Dline_ax_pg:            
+            for line in self.plots.data2Dline_ax_pg:
+                line.remove()
 
-    def plot_dp(self):
         ax = self.axs.dp
-        p = self.pw.query('selection==1').period.values
+        p = pw.query('selection==1').period.values
         x = period_for_dP_plot(p, mode='middle')
         y = np.diff(p)
-        ax.plot(x, y, lw=1, color='k', ls='dashed', marker='.', zorder=2, picker=5)
+        line = ax.plot(x, y, lw=1, color='k', ls=ls, marker='.', zorder=2, picker=5)
+        self.plots.data2Dline_ax_pg = line
         # Mark level zero
-        ax.axhline(0, ls='dotted', lw=0.5, color='gray') 
+        ax.axhline(0, ls='-', lw=0.5, color='gray') 
 
-    def plot_echelle(self):
+    def plot_echelle(self, keep_xlim=False, keep_ylim=False, keep_xlim_ylim=False, pw=None):
+        if pw is None:
+            pw = self.pw
+            
+        # Clear plot if
+        if self.plots.echelle_vline1:
+            self.plots.echelle_vline1.remove()
+        if self.plots.echelle_vline2:
+            self.plots.echelle_vline2.remove()
+        if self.plots.p_scatter_1:
+            self.plots.p_scatter_1.remove()
+        if self.plots.p_scatter_2:
+            self.plots.p_scatter_2.remove()
+        if self.plots.p_scatter_3:
+            self.plots.p_scatter_3.remove()
+        
         ax = self.axs.echelle
-        p = self.pw.period.values
+        p = pw.period.values
         module_dp = self.module_dp
-        ampl = self.pw.ampl.values
-        selection = self.pw.selection.values
+        ampl = pw.ampl.values
+        selection = pw.selection.values
         color = self._colorOnOff[selection]
         size = 100.*(ampl/ampl.max())
         # scatter1 = self.axs.echelle.scatter(p%module_dp-module_dp, p, s=size, color=color, zorder=3, picker=5)
         # scatter2 = self.axs.echelle.scatter(p%module_dp+module_dp, p, s=size, color=color, zorder=3, picker=5)
         # scatter3 = self.axs.echelle.scatter(p%module_dp   , p, s=size, color=color, zorder=3, picker=5)
-        ax.scatter(p%module_dp-module_dp, p, s=size, color=color, zorder=3, picker=5)
-        ax.scatter(p%module_dp+module_dp, p, s=size, color=color, zorder=3, picker=5)
-        ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
         # Plotted range
-        ax.set_xlim(-module_dp, 2*module_dp)
-        ax.set_ylim(p.min(), p.max())
+        if keep_xlim_ylim:
+            keep_xlim = True
+            keep_ylim = True
+        if keep_xlim:
+            xlim = ax.get_xlim()
+        if keep_ylim:
+            ylim = ax.get_ylim()
+        self.plots.p_scatter_1 = ax.scatter(p%module_dp-module_dp, p, s=size, color=color, zorder=3, picker=5)
+        self.plots.p_scatter_2 = ax.scatter(p%module_dp+module_dp, p, s=size, color=color, zorder=3, picker=5)
+        self.plots.p_scatter_3 = ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
+        ax.set_xlim(xlim) if keep_xlim else ax.set_xlim(-module_dp, 2*module_dp)
+        ax.set_ylim(ylim) if keep_ylim else ax.set_ylim(p.min(), p.max())
+            
         # Separe the 3 plotted echelles
-        ax.axvline(0,  ls='dashed', color='gray', lw=2, zorder=2)
-        ax.axvline(module_dp, ls='dashed', color='gray', lw=2, zorder=2)
+        self.plots.echelle_vline1 = ax.axvline(0,  ls='dashed', color='gray', lw=2, zorder=2)
+        self.plots.echelle_vline2 = ax.axvline(module_dp, ls='dashed', color='gray', lw=2, zorder=2)
 
-    def add_mdp2dp(self):
+    def plot_module_p(self):
+        if self.plots.dp_hline:
+            self.plots.dp_hline.remove()
         ax = self.axs.dp
         # line = ax_dp.axhline(dp, color='dodgerblue', lw=1, zorder=0, ls='dotted')
-        ax.axhline(self.module_dp, color='dodgerblue', lw=1, zorder=0, ls='dotted')
+        self.plots.dp_hline = ax.axhline(self.module_dp, color='dodgerblue', lw=1, zorder=0, ls='-')
         
 
-        
-
-
-    # Key to enable interactive mode: all
-    keystroke_i1 = 'control' if platform == 'linux' else 'i'
-    # Key to enable interactive mode: spanning
-    keystroke_i2 = 'shift+control' if platform == 'linux' else 'I'
-    
-    plotted_lines = {}
-    selection = {}
-
-    
-    
 if __name__ == '__main__':
 
     # Read user inputs
@@ -1816,269 +1578,17 @@ if __name__ == '__main__':
     
     # Generate the object to manage interactive plot
     iPlot = IPlot(pw=userData.pw.data, pg=userData.pg.data, freq_resolution=userData.freq_resolution)
+    iPlot.connect()
     
+    # with IPlot(pw=userData.pw.data, pg=userData.pg.data, freq_resolution=userData.freq_resolution):
+    #     plt.show()
     
+    # TODO: Activate buutons in the figure :-)
     
-    # df = pw.copy() # Now df is iPlot.pw
-    # comb_params['data'] = df # Now comb_params['data'] is iPlot.pw
-    # comb_params['match'] = np.array([]) # Now comb_params['match'] is iPlot.linearPSP.goodnessFit.match
- 
-    # TODO: Keep adding content of the plots :-)
 
-    # Plot available periods for the fit as triangles in the top panel
-    plotted_lines['selection_p'] = []
-    # x = df.query('selection==1').period.values
-    # y = np.repeat(0.2, x.size)
-    # line, = ax_p.plot(x, y, color='k', marker=7, alpha=1,
-    #                   zorder=2, picker=5, ls='None')
-    plotted_lines['selection_p'].append(line)
-
-
-    # # Plot the periodogram of the light curve
-    # x = pg.sort_values(by=['period']).period
-    # y = pg.sort_values(by=['period']).amp
-    # ax_pg.plot(x, y, lw=1, color='k', zorder=3)
-
-    # # Plotted range
-    # xlim = (df.period.min()-1/365, df.period.max()+1/365)
-    # ax_pg.set_xlim(xlim)
-
-    # Overplot prewhitening results as vertical lines on the periodogram
-    # for p in df.period:
-    #     ax_pg.axvline(p, color='k', ls='dotted', lw=1)
-
-    # Plot prewhitening dP vs P
-    # plotted_lines['obs_dp'] = []
-    # _ = df.query('selection==1').period.values
-    # x = period_for_dP_plot(_, mode='middle')
-    # y = np.diff(_)
-    # line, = ax_dp.plot(x, y, lw=1, color='k', ls='dashed', marker='.', zorder=2, picker=5)
-    # plotted_lines['obs_dp'].append(line)
-
-    # # Mark zero
-    # ax_dp.axhline(0, ls='dotted', lw=0.5, color='gray')
-
-
-
-    # Plot period echelle diagram
-    # colors = [choose_color(val) for val in df.selection.values]
-    # dp = np.median(np.diff(df.period.values))
-    # scatter1 = ax_echelle.scatter((df.period) % dp - dp, df.period,
-    #                               s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-    # scatter2 = ax_echelle.scatter((df.period) % dp + dp, df.period,
-    #                               s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-    # scatter3 = ax_echelle.scatter((df.period) % dp,      df.period,
-    #                               s=100.*(df.amp/df.amp.max()), color=colors, zorder=3, picker=5)
-    # plotted_lines['mdp'] = []
-    # line = ax_dp.axhline(dp, color='dodgerblue', lw=1, zorder=0, ls='dotted')
-    # plotted_lines['mdp'].append(line)
-
-    # Plot period echelle diagram of the comb
-    # scatter11 = ax_echelle.scatter(
-    #     (comb_params['P']) % dp - dp, comb_params['P'], s=30, color='r', zorder=4, alpha=0.3, marker='*')
-    # scatter22 = ax_echelle.scatter(
-    #     (comb_params['P']) % dp + dp, comb_params['P'], s=30, color='r', zorder=4, alpha=0.3, marker='*')
-    # scatter33 = ax_echelle.scatter(
-    #     (comb_params['P']) % dp,      comb_params['P'], s=30, color='r', zorder=4, alpha=0.3, marker='*')
-    # scatter44 = ax_echelle.scatter(
-    #     (comb_params['P0']) % dp,      comb_params['P0'], s=30, color='gold', zorder=4, alpha=0.3, marker='*')
-
-    # # Plotted range
-    # ax_echelle.set_xlim(-dp, 2.*dp)
-    # ax_echelle.set_ylim(df.period.min(), df.period.max())
-
-    # Separating the different echelles in the figure
-    # plotted_lines['echelle_vline'] = []
-    # ax_echelle.axvline(0,  ls='dashed', color='gray', lw=2, zorder=2)
-    # line = ax_echelle.axvline(dp, ls='dashed', color='gray', lw=2, zorder=2)
-    # plotted_lines['echelle_vline'].append(line)
-
-
-
-    # # Plot template comb on the periodogram
-    # plotted_lines['comb_pg'] = []
-    # for p in comb_params['P']:
-    #     if p != comb_params['P0']:
-    #         line = ax_pg.axvline(p, color='r', alpha=0.3, lw=2, zorder=0)
-    #         plotted_lines['comb_pg'].append(line)
-    # line = ax_pg.axvline(comb_params['P0'], color='gold', alpha=0.9, lw=2, zorder=0)
-    # plotted_lines['comb_pg'].append(line)
-    # # plot_updated_comb(interactive=False)
-
-    # Plot template dP vs P
-    # plotted_lines['comb_dp'] = []
-    # x = period_for_dP_plot(comb_params['P'], mode='middle')
-    # y = np.diff(comb_params['P'])
-    # line, = ax_dp.plot(x, y, lw=1, color='r', marker='*',ls='solid', zorder=1, alpha=0.5)
-    # plotted_lines['comb_dp'].append(line)
-    # if comb_params['nr'] > 1:
-    #     ind = np.abs(comb_params['P']-comb_params['P0']).argmin()
-    #     _ = comb_params['P'][ind:ind+2]
-    #     x = period_for_dP_plot(_, mode='middle')
-    #     y = np.diff(_)
-    #     line, = ax_dp.plot(x, y, lw=1, color='gold',
-    #                        marker='*', ls='None', zorder=1, alpha=.5)
-    #     plotted_lines['comb_dp'].append(line)
-
-    # Plot observations that match the comb
-    plotted_lines['observed_p'] = []
-
-    # # Sliders
-
-    # # Make space to place sliders
-    # fig.subplots_adjust(bottom=0.2, top=0.8)
-
-    # # Create axes for sliders
-    # height = 0.01
-    # width = 0.775
-    # x0 = 0.125
-    # y0 = 0.81
-    # hspacing = 0.015
-
-    # n_sliders = 5
-
-    # coords = [(x0, y0+i*hspacing, width, height) for i in range(n_sliders)]
-    # slider_axes = [fig.add_axes(
-    #     c, facecolor='lightgoldenrodyellow') for c in coords]
-    # for ax in slider_axes:
-    #     ax.spines['top'].set_visible(True)
-    #     ax.spines['right'].set_visible(True)
-
-    # ax_amp_slider = slider_axes[0]
-    # ax_mod_slider = slider_axes[1]
-    # ax_P0_slider = slider_axes[2]
-    # ax_dP0_slider = slider_axes[3]
-    # ax_Sigma_slider = slider_axes[4]
-
-    # # Set range for each slider
-    # lower_limit_amp = 0
-    # upper_limit_amp = 1
-
-    # lower_limit_P0 = df.period.min()
-    # upper_limit_P0 = df.period.max()
-
-    # lower_limit_dP0 = 100*sec_to_day
-    # upper_limit_dP0 = 4000*sec_to_day
-
-    # _ = df.query('selection==1').period.values
-    # lower_limit_mod = min(lower_limit_dP0, np.diff(_).min())
-    # upper_limit_mod = max(upper_limit_dP0, np.diff(_).max())
-
-    # lower_limit_Sigma = -0.3  # -0.2 #Sigma + 0.5*Sigma
-    # upper_limit_Sigma = 0.3  # 0.2 #Sigma - 0.5*Sigma
-
-    # # Set resolution or step for each slider
-    # amp_resolution = 0.01
-    # mod_resolution = 0.0001
-    # P0_resolution = 0.0001
-    # dP0_resolution = 0.0001
-    # Sigma_resolution = 0.001
-
-    # # Set initial value for each slider
-    # amp_initial = 0
-    # mod_initial = comb_params['dP0']
-    # P0_initial = comb_params['P0']
-    # dP0_initial = comb_params['dP0']
-    # Sigma_initial = comb_params['Sigma']
-
-    # slider_amp = Slider(ax_amp_slider,   'ampl',         lower_limit_amp,   upper_limit_amp,
-    #                     valinit=amp_initial,   valfmt='%1.2f', facecolor='k', valstep=amp_resolution)
-    # slider_mod = Slider(ax_mod_slider,   'mod',          lower_limit_mod,   upper_limit_mod,
-    #                     valinit=mod_initial,   valfmt='%1.6f d', facecolor='dodgerblue', valstep=mod_resolution)
-    # slider_P0 = Slider(ax_P0_slider,    '$P_0$',        lower_limit_P0,    upper_limit_P0,
-    #                    valinit=P0_initial,    valfmt='%1.6f d', facecolor='gold',  valstep=P0_resolution)
-    # slider_dP0 = Slider(ax_dP0_slider,   '$\Delta P_0$', lower_limit_dP0,   upper_limit_dP0,
-    #                     valinit=dP0_initial,   valfmt='%1.6f d', facecolor='red',  valstep=dP0_resolution)
-    # slider_Sigma = Slider(ax_Sigma_slider, '$\Sigma$',     lower_limit_Sigma, upper_limit_Sigma,
-    #                       valinit=Sigma_initial, valfmt='%1.6f',   facecolor='red',  valstep=Sigma_resolution)
-
-    slider_amp.on_changed(update_amplitude_tolerance)
-    slider_mod.on_changed(update_echelle)
-    slider_P0.on_changed(update_comb)
-    slider_dP0.on_changed(update_comb)
-    slider_Sigma.on_changed(update_comb)
-
-    # Build interface: Buttons, checkbox and textbox
-
-    height = 0.02
-    width = 0.1
-    dwidth = 0.01
-    button_x0 = 0.10
-    # button_y0 = 0.07
-
-    xpos = button_x0+0*(width+dwidth)
-    # ypos = 0.07
-    # ypos = 0.4
-    ypos = ax_buttons.get_position().y0+ax_buttons.get_position().height/2
-
-    # <<--------------|
-    button_fit = Button(plt.axes([xpos, ypos, width, height]), 'Fit')
-    button_fit.on_clicked(do_fit3)
-
-    xpos = button_x0+0*(width+dwidth)
-    button_explore = Button(plt.axes(
-        [xpos, ypos-height, width, height]), 'Explore result')  # <<--------------|
-    button_explore.on_clicked(explore_results2)
-
-    xpos = button_x0+1*(width+dwidth)
-    button_save = Button(plt.axes([xpos, ypos, width, height]), 'Save')
-    button_save.on_clicked(save)
-
-    # Boxes
-
-    xpos = button_x0+2*(width+dwidth)
-    ax_box_mismatch = plt.axes([xpos, ypos, width, height])
-    text_box_mismatch = TextBox(
-        ax_box_mismatch, "", initial='0', color='lightgoldenrodyellow')
-    ax_box_mismatch.set_title('Mismatch', y=-1.0)
-
-    xpos = button_x0+3*(width+dwidth)
-    ax_box_residuals = plt.axes([xpos, ypos, width, height])
-    text_box_residuals = TextBox(
-        ax_box_residuals, "", initial='0', color='lightgoldenrodyellow')
-    ax_box_residuals.set_title('Residuals (d)', y=-1.0)
-
-    xpos = button_x0+4*(width+dwidth)
-    ax_box_P0 = fig.add_axes([xpos, ypos, width, height])
-    text_box_P0 = TextBox(ax_box_P0, "", initial='0')
-    cid_box_P0 = text_box_P0.on_submit(read_box_P0)
-    ax_box_P0.set_title('$P_0$ (d)', y=-1.0)
-
-    xpos = button_x0+5*(width+dwidth)
-    ax_box_dP0 = fig.add_axes([xpos, ypos, width, height])
-    text_box_dP0 = TextBox(ax_box_dP0, "", initial='0')
-    cid_box_dP0 = text_box_dP0.on_submit(read_box_dP0)
-    ax_box_dP0.set_title('$\Delta P_0$ (d)', y=-1.0)
-
-    xpos = button_x0+6*(width+dwidth)
-    ax_box_Sigma = fig.add_axes([xpos, ypos, width, height])
-    text_box_Sigma = TextBox(ax_box_Sigma, "", initial='0')
-    cid_box_Sigma = text_box_Sigma.on_submit(read_box_Sigma)
-    ax_box_Sigma.set_title('$\Sigma$', y=-1.0)
-
-    # Connect ID to the plot visualization
-    cid_key = fig.canvas.mpl_connect('key_press_event', read_keystroke)
-    cid_button = fig.canvas.mpl_connect('button_press_event', read_button)
-    cid_pick = fig.canvas.mpl_connect('pick_event', update_selection)
-
-    # Properties of the rectangle-span area-selector
-    rect_props = dict(facecolor='grey', alpha=0.20)
-    # Area selector
-    span = mwidgets.SpanSelector(
-        ax_pg, onselect, 'horizontal', rectprops=rect_props, useblit=False)
-
-    ax_Sigma_slider.set_title(f'TIC {TIC}')
-    # fig.suptitle(f'TIC {TIC}')
-
-    # mng = plt.get_current_fig_manager()
-    # mng.resize(1800,800)
-
-    # figManager = plt.get_current_fig_manager()
-    # figManager.window.showMaximized()
-    # ScrollableWindow(fig)
-    plt.show()
 
     # Disconnect from the plot visuzlization
     for cid in [cid_key, cid_button, cid_pick, cid_box_P0, cid_box_dP0, cid_box_Sigma]:
         fig.canvas.mpl_disconnect(cid)
 
+    plt.show()
