@@ -1,7 +1,7 @@
 from astropy import units as u
 
 # Set TIC number of your TESS star
-TIC = 349832567
+TIC = 374944608
 outputDir = './outputs'
 
 # Set path containing the prewhitened frequencies. Must be a CSV file with header.
