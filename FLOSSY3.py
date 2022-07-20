@@ -176,23 +176,23 @@ def pattern_period(P0,
 
 # Update values
 
-def read_box_P0(text):
-    P0 = np.float(text)
-    slider_P0.set_val(P0)
-    comb_params['P0'] = P0
-    plot_comb(interactive=True)
+# def read_box_P0(text):
+#     P0 = np.float(text)
+#     slider_P0.set_val(P0)
+#     comb_params['P0'] = P0
+#     plot_comb(interactive=True)
 
-def read_box_dP0(text):
-    dP0 = np.float(text)
-    slider_dP0.set_val(dP0)
-    comb_params['dP0'] = dP0
-    plot_comb(interactive=True)
+# def read_box_dP0(text):
+#     dP0 = np.float(text)
+#     slider_dP0.set_val(dP0)
+#     comb_params['dP0'] = dP0
+#     plot_comb(interactive=True)
 
-def read_box_Sigma(text):
-    Sigma = np.float(text)
-    slider_Sigma.set_val(Sigma)
-    comb_params['Sigma'] = Sigma
-    plot_comb(interactive=True)
+# def read_box_Sigma(text):
+#     Sigma = np.float(text)
+#     slider_Sigma.set_val(Sigma)
+#     comb_params['Sigma'] = Sigma
+#     plot_comb(interactive=True)
 
 ##############################################################################
 
@@ -325,170 +325,6 @@ def do_fit3(event):
 
 ##############################################################################
 
-
-def explore_results2(event):
-
-    global P0_grid, dP0_grid, Sigma_grid, args
-
-    # Grid of P0, dP0, Sigma
-    P0_grid = np.arange(comb_params['P0']-50*P0_resolution,
-                        comb_params['P0']+50*P0_resolution,
-                        P0_resolution)
-    dP0_grid = np.arange(comb_params['dP0']-50*dP0_resolution/10,
-                         comb_params['dP0']+50*dP0_resolution/10,
-                         dP0_resolution/10)
-    Sigma_grid = np.arange(comb_params['Sigma']-50*Sigma_resolution,
-                           comb_params['Sigma']+50*Sigma_resolution,
-                           Sigma_resolution)
-
-    results = np.empty([P0_grid.size,
-                        dP0_grid.size,
-                        Sigma_grid.size])
-
-    # Fit parameters
-    P_obs = df.query('selection==1').period.values
-    e_P_obs = df.query('selection==1').e_period.values
-    A_obs = df.query('selection==1').amp.values
-    weights_obs = A_obs/A_obs.max()
-    weights_obs /= weights_obs.sum()  # normalize the weights
-
-    args = (comb_params['nr'], comb_params['nl'], P_obs, weights_obs, e_P_obs)
-
-    jit_compute_S_on_grid = jit(compute_S_on_grid, nopython=True)
-    jit_compute_S_on_grid(results)
-
-#     results = compute_S_on_grid(results)
-
-    # Plot P0 vs dP0 <--------------------------------------------------
-    Z = np.minimum.reduce(results, axis=2)
-    Z = np.log(Z)
-
-    levels = MaxNLocator(nbins=100).tick_values(Z.min(), Z.max())
-    cmap = plt.get_cmap('terrain')
-    norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
-
-    ax = ax_P0dP0
-    ax_cbar = ax_P0dP0_cbar
-    ax.clear()
-    ax_cbar.clear()
-
-    X, Y = np.meshgrid(P0_grid, dP0_grid)
-
-    #         ax.clear()
-    cf = ax.contourf(X.T, Y.T, Z, levels=levels, cmap=cmap)
-    #         cbar_axes['P0dP0'].clear()
-    cbar = plt.colorbar(cf, ax=ax, cax=ax_cbar, orientation='horizontal')
-
-    # Plot bes-fit results
-    (color, ls, lw) = ('r', 'solid', 0.5)
-    ax.axvline(comb_params['P0'],  color=color, ls=ls, lw=lw)
-    ax.axhline(comb_params['dP0'], color=color, ls=ls, lw=lw)
-
-
-    xlim = ax.get_xlim()
-
-    # Plot P0
-    ax = ax_P0
-    ax.clear()
-
-    ax.plot(P0_grid,
-            np.minimum.reduce(results, axis=(1, 2)),
-            ls='solid', lw=1, marker='.', markersize=1, color='k')
-
-    ax.axvline(comb_params['P0'], color='r', ls='solid', lw=1)
-    ax.axvspan(comb_params['P0']-comb_params['e_P0'],
-               comb_params['P0']+comb_params['e_P0'],
-               color='red', ls='dashed', lw=1, alpha=0.5)
-
-
-    ax.set_xlim(xlim)
-
-    # Plot dP0 vs Sigma <----------------------
-    Z = np.minimum.reduce(results, axis=0)
-    Z = np.log(Z)
-
-    levels = MaxNLocator(nbins=100).tick_values(Z.min(), Z.max())
-    cmap = plt.get_cmap('terrain')
-    norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
-
-    ax = ax_dP0Sigma
-    ax_cbar = ax_dP0Sigma_cbar
-    ax.clear()
-    ax_cbar.clear()
-
-    X, Y = np.meshgrid(dP0_grid, Sigma_grid)
-
-    #         ax.clear()
-    cf = ax.contourf(X.T, Y.T, Z, levels=levels, cmap=cmap)
-    #         cbar_axes['P0dP0'].clear()
-    cbar = plt.colorbar(cf, ax=ax, cax=ax_cbar, orientation='horizontal')
-
-    # Plot bes-fit results
-    (color, ls, lw) = ('r', 'solid', 0.5)
-    ax.axvline(comb_params['dP0'],  color=color, ls=ls, lw=lw)
-    ax.axhline(comb_params['Sigma'], color=color, ls=ls, lw=lw)
-
-
-    xlim = ax.get_xlim()
-
-    # Plot dP0
-    ax = ax_dP0
-    ax.clear()
-
-    ax.plot(dP0_grid,
-            np.minimum.reduce(results, axis=(0, 2)),
-            ls='solid', lw=1, marker='.', markersize=1, color='k')
-
-    ax.axvline(comb_params['dP0'], color='r', ls='solid', lw=1)
-    ax.axvspan(comb_params['dP0']-comb_params['e_dP0'],
-               comb_params['dP0']+comb_params['e_dP0'],
-               color='r', ls='dashed', lw=1, alpha=0.5)
-
-
-    ax.set_xlim(xlim)
-
-    # Plot Sigma vs P0 <-----------------------------------------
-    Z = np.minimum.reduce(results, axis=1)
-    Z = np.log(Z)
-
-    levels = MaxNLocator(nbins=100).tick_values(Z.min(), Z.max())
-    cmap = plt.get_cmap('terrain')
-    norm = BoundaryNorm(levels, ncolors=cmap.N, clip=True)
-
-    ax = ax_SigmaP0
-    ax_cbar = ax_SigmaP0_cbar
-    ax.clear()
-    ax_cbar.clear()
-
-    X, Y = np.meshgrid(Sigma_grid, P0_grid)
-
-    #         ax.clear()
-    cf = ax.contourf(X, Y, Z, levels=levels, cmap=cmap)
-    #         cbar_axes['P0dP0'].clear()
-    cbar = plt.colorbar(cf, ax=ax, cax=ax_cbar, orientation='horizontal')
-
-    # Plot bes-fit results
-    (color, ls, lw) = ('r', 'solid', 0.5)
-    ax.axvline(comb_params['Sigma'],  color=color, ls=ls, lw=lw)
-    ax.axhline(comb_params['P0'], color=color, ls=ls, lw=lw)
-
-
-    xlim = ax.get_xlim()
-
-    # Plot Sigma
-    ax = ax_Sigma
-    ax.clear()
-
-    ax.plot(Sigma_grid,
-            np.minimum.reduce(results, axis=(0, 1)),
-            ls='solid', lw=1, marker='.', markersize=1, color='k')
-
-    ax.axvline(comb_params['Sigma'], color='r', ls='solid', lw=1)
-    ax.axvspan(comb_params['Sigma']-comb_params['e_Sigma'],
-               comb_params['Sigma']+comb_params['e_Sigma'],
-               color='r', ls='dashed', lw=1, alpha=0.5)
-
-    ax.set_xlim(xlim)
     
 # Constants:
 sec_to_day = 1/(3600*24)
@@ -507,6 +343,66 @@ def convert_resolution(x,dx):
     y = 1/x
     dy = dx*y**2
     return y, dy
+
+
+
+def compute_S_on_grid(M):
+    '''compute S for all parameter space M'''
+#     global P0_grid,dP0_grid,Sigma_grid, args
+    for i in range(P0_grid.size):
+        for j in range(dP0_grid.size):
+            for k in range(Sigma_grid.size):
+                M[i, j, k] = _S(P0_grid[i], dP0_grid[j], Sigma_grid[k], *args)
+
+@njit
+def _S(P0,
+        dP0,
+        alpha,
+        nr,
+        nl,
+        P_obs,
+        weight,
+        sigma):
+
+    P_model, dP_model = pattern_period(P0,
+                                    dP0,
+                                    alpha,
+                                    nr=nr,
+                                    nl=nl)
+
+    # If none, generate weight and sigma
+    if weight is None:
+        weight = np.repeat(1., P_obs.size)
+    if sigma is None:
+        sigma = np.repeat(0., P_obs.size)
+
+    # Iterate over the terms of the sum
+    S = 0
+    for p_i, w_i, sigma_i in zip(P_obs, weight, sigma):
+
+        i = np.abs(p_i-P_model).argmin()
+        p_model = P_model[i]
+        dp_model = dP_model[i]
+
+        S += w_i*(p_i-p_model)**2/(dp_model**2+sigma_i**2)
+
+    return S
+
+def S(params,
+        nr,
+        nl,
+        P_obs,
+        weight,
+        sigma):
+    '''
+    Same as _S but collects the parameters to optimize in the first argument.
+    It does it to comply with the convention of scipy.optimize.minimize
+    '''
+    return _S(*params, nr, nl, P_obs, weight, sigma)
+
+
+
+
     
 class UserData:
     """
@@ -870,7 +766,7 @@ class IPlot:
         self.pg = pg
         self.freq_resolution = freq_resolution
         self.extra_textBoxes = extra_textBoxes
-        self.TIC = TIC
+        self.tic = int(TIC)
         
         # Parse the raw data
         self.parse_pw()
@@ -903,6 +799,7 @@ class IPlot:
         self.plots.PSP_echelle_scatter_3 = None
         self.plots.dp_hline = None
         self.plots.matches_scatter = None
+        self.plots.cf = None
         
         # Interavtivity
         self.fitted_pw = None
@@ -917,6 +814,7 @@ class IPlot:
         # self.fig = plt.gcf() if fig is None else fig
         # self.ax = self.fig.gca()
         self.connections = ()
+        self.connections_textBoxes = []
         self.selectionSpan()
         
         self.plot_data(plot_pg=True)
@@ -945,7 +843,7 @@ class IPlot:
 
     def disconnect(self):
         """ Uninstall the event handlers for the plot. """
-        for connection in self.connections:
+        for connection in self.connections+self.connections_textBoxes:
             self.fig.canvas.mpl_disconnect(connection)
 
     def on_click(self, event):
@@ -1054,6 +952,28 @@ class IPlot:
         # Generate and plot linear PSP
         self.PSP.generatePSP()
         self.plot_PSP()
+
+
+    def read_box_P0(self,text):
+        P0 = np.float(text)
+        self.sliders.P0.set_val(P0)
+        # self.PSP.P0 = P0
+        # plot_comb(interactive=True)
+
+    def read_box_dP0(self,text):
+        dP0 = np.float(text)
+        self.sliders.dP0.set_val(dP0)
+        # self.PSP.dP0 = dP0
+        # plot_comb(interactive=True)
+
+    def read_box_Sigma(self,text):
+        Sigma = np.float(text)
+        self.sliders.Sigma.set_val(Sigma)
+        # self.PSP.Sigma = Sigma
+        # plot_comb(interactive=True)
+
+
+
           
     def on_pick(self, event):
         
@@ -1108,6 +1028,8 @@ class IPlot:
             swap = {'dashed':'None', 'None':'dashed'}
             self.ls_dp = swap[self.ls_dp]
             self.plot_dp()
+            self.fig.canvas.draw_idle()
+
 
 
     def save(self, event):
@@ -1138,13 +1060,13 @@ class IPlot:
         #                                     prompt="Enter an output name without extension.",
         #                                     initialvalue=tentative_name)
 
-        outputname = f'tic{self.TIC}'
+        outputname = f'tic{self.tic}'
         
         print('Save 5')
         # Save
         if outputname:
             # Save a PDF
-            self.fig.savefig(f'{outputname}.pdf')
+            self.fig.savefig(f'{outputname}.pdf', bbox_inches='tight')
             # Save the comb pattern found as a dictionary in a pickle file
             # with open(f'{outputname}.pickled', 'wb') as picklefile:
             #     pickle.dump(comb_params, picklefile)
@@ -1186,7 +1108,9 @@ class IPlot:
         args = (self.PSP.nr, self.PSP.nl, P_obs, w_obs, e_P_obs)
 
         # jit_compute_S_on_grid = jit(self.compute_S_on_grid, nopython=True)
-        jit_compute_S_on_grid = self.compute_S_on_grid
+        jit_compute_S_on_grid = jit(compute_S_on_grid, nopython=True)
+        # jit_compute_S_on_grid = compute_S_on_grid
+        # jit_compute_S_on_grid = self.compute_S_on_grid
         jit_compute_S_on_grid(results)
 
     #     results = compute_S_on_grid(results)
@@ -1210,6 +1134,7 @@ class IPlot:
         cf = ax.contourf(X.T, Y.T, Z, levels=levels, cmap=cmap)
         #         cbar_axes['P0dP0'].clear()
         cbar = plt.colorbar(cf, ax=ax, cax=ax_cbar, orientation='horizontal')
+        self.plots.cf = cf
 
         # Plot bes-fit results
         (color, ls, lw) = ('r', 'solid', 0.5)
@@ -1320,64 +1245,17 @@ class IPlot:
         #         self.PSP.Sigma+self.PSP.e_Sigma,
         #         color='r', ls='dashed', lw=1, alpha=0.5)
 
+
+
         ax.set_xlim(xlim)
 
 
-    def compute_S_on_grid(self,M):
-        '''compute S for all parameter space M'''
-    #     global P0_grid,dP0_grid,Sigma_grid, args
-        for i in range(P0_grid.size):
-            for j in range(dP0_grid.size):
-                for k in range(Sigma_grid.size):
-                    M[i, j, k] = self._S(P0_grid[i], dP0_grid[j], Sigma_grid[k], *args)
+        self.format(noSliders=True)
 
-    # @njit
-    def _S(self,
-           P0,
-           dP0,
-           alpha,
-           nr,
-           nl,
-           P_obs,
-           weight,
-           sigma):
 
-        P_model, dP_model = pattern_period(P0,
-                                        dP0,
-                                        alpha,
-                                        nr=nr,
-                                        nl=nl)
+        self.fig.canvas.draw_idle()
 
-        # If none, generate weight and sigma
-        if weight is None:
-            weight = np.repeat(1., P_obs.size)
-        if sigma is None:
-            sigma = np.repeat(0., P_obs.size)
 
-        # Iterate over the terms of the sum
-        S = 0
-        for p_i, w_i, sigma_i in zip(P_obs, weight, sigma):
-
-            i = np.abs(p_i-P_model).argmin()
-            p_model = P_model[i]
-            dp_model = dP_model[i]
-
-            S += w_i*(p_i-p_model)**2/(dp_model**2+sigma_i**2)
-
-        return S
-
-    def S(self,
-          params,
-          nr,
-          nl,
-          P_obs,
-          weight,
-          sigma):
-        '''
-        Same as _S but collects the parameters to optimize in the first argument.
-        It does it to comply with the convention of scipy.optimize.minimize
-        '''
-        return self._S(*params, nr, nl, P_obs, weight, sigma)
 
     def fitPSP(self,event):
         
@@ -1443,7 +1321,7 @@ class IPlot:
     #     else:
     #         method = 'BFGS'
 
-        results = minimize(self.S, x0, args=args, bounds=bounds)
+        results = minimize(S, x0, args=args, bounds=bounds)
 
         self.PSP.P0 = results.x[0]
         self.PSP.dP0 = results.x[1]
@@ -1674,7 +1552,17 @@ class IPlot:
                 dp = np.diff(p)
                 ax = self.axs.sliders.module_p
                 slider = self.sliders.module_p
-                vmin = dp.min()/3
+                vmin = dp.min()/4
+                vmax = dp.max()*2
+                valinit = (vmin+vmax)/2
+                self.update_slider(ax, slider, vmin, vmax, valinit)
+                # Update slider dp
+                print('print 5')
+                p = self.pw.query('selection==1').period.values
+                dp = np.diff(p)
+                ax = self.axs.sliders.dP0
+                slider = self.sliders.dP0
+                vmin = dp.min()/4
                 vmax = dp.max()*2
                 valinit = (vmin+vmax)/2
                 self.update_slider(ax, slider, vmin, vmax, valinit)
@@ -1728,94 +1616,189 @@ class IPlot:
         self.sliders.dP0.on_changed(self.sliderAction_dP0)
         self.sliders.Sigma.on_changed(self.sliderAction_Sigma)
 
+    def LinearPSP(self,P0,dP0,Sigma=0,nr=5,nl=5) -> None:
+        
+        class PSPspace:
+            pass
+        
+        self.PSP= PSPspace()
+        self.PSP.P0 = P0
+        self.PSP.dP0 = dP0
+        self.PSP.Sigma = Sigma
+        self.PSP.nr = nr
+        self.PSP.nl = nl
+        self.PSP.generatePSP = self.generatePSP
+        self.PSP.add2pg = self.add2pg
+        self.PSP.add2dp = self.add2dp
+        self.PSP.add2echelle = self.add2echelle
+        self.PSP.generatePSP()
+        
+    def generatePSP(self):
+        self.PSP.p, self.PSP.dp = pattern_period(self.PSP.P0,self.PSP.dP0,self.PSP.Sigma,self.PSP.nr,self.PSP.nl)
 
+    def add2echelle(self):
+        # Clear plot if
+        if self.plots.PSP_echelle_scatter_1:
+            self.plots.PSP_echelle_scatter_1.remove()
+        if self.plots.PSP_echelle_scatter_2:
+            self.plots.PSP_echelle_scatter_2.remove()
+        if self.plots.PSP_echelle_scatter_3:
+            self.plots.PSP_echelle_scatter_3.remove()
+        ax = self.axs.echelle
+        p = self.PSP.p
+        module_dp = self.module_dp
+        color = 'r'
+        size = 30
+        self.plots.PSP_echelle_scatter_1 = ax.scatter(p%module_dp-module_dp, p, s=size, color=color, zorder=3, picker=5)
+        self.plots.PSP_echelle_scatter_2 = ax.scatter(p%module_dp+module_dp, p, s=size, color=color, zorder=3, picker=5)
+        self.plots.PSP_echelle_scatter_3 = ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
 
-    class LinearPSP(LinearPSP):
-        def __init__(self,outer,P0,dP0,Sigma=0,nr=5,nl=5):
-            LinearPSP.__init__(self,P0,dP0,Sigma,nr,nl)
-            self.outer = outer
-
-        def add2echelle(self):
-            # Clear plot if
-            if self.outer.plots.PSP_echelle_scatter_1:
-                self.outer.plots.PSP_echelle_scatter_1.remove()
-            if self.outer.plots.PSP_echelle_scatter_2:
-                self.outer.plots.PSP_echelle_scatter_2.remove()
-            if self.outer.plots.PSP_echelle_scatter_3:
-                self.outer.plots.PSP_echelle_scatter_3.remove()
-            ax = self.outer.axs.echelle
-            p = self.p
-            module_dp = self.outer.module_dp
-            color = 'r'
-            size = 30
-            self.outer.plots.PSP_echelle_scatter_1 = ax.scatter(p%module_dp-module_dp, p, s=size, color=color, zorder=3, picker=5)
-            self.outer.plots.PSP_echelle_scatter_2 = ax.scatter(p%module_dp+module_dp, p, s=size, color=color, zorder=3, picker=5)
-            self.outer.plots.PSP_echelle_scatter_3 = ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
-
-        def add2pg(self):
-            # Clear plot if
-            if self.outer.plots.PSP_pg_vline:
-                self.outer.plots.PSP_pg_vline.remove()
-            # Clear plot if
-            if self.outer.plots.PSP_pg_lines1:            
-                for line in self.outer.plots.PSP_pg_lines1:
-                    line.remove()
-            # Clear plot if
-            if self.outer.plots.PSP_pg_lines2:            
-                for line in self.outer.plots.PSP_pg_lines2:
-                    line.remove()
-                    
-            ax = self.outer.axs.pg
-            trans = tx.blended_transform_factory(ax.transData, ax.transAxes)
-            p = self.p
-            P0 = self.P0
-            self.outer.plots.PSP_pg_lines1 = ax.plot(np.repeat(p, 3), np.tile([0, 1, np.nan], len(p)), color='r', alpha=0.3, lw=2, zorder=0, transform=trans)
-            # Overplot P0 with a different color
-            self.outer.plots.PSP_pg_vline = ax.axvline(P0, color='gold', alpha=0.9, lw=2, zorder=0)
-
-            # Unresolved frequencies
-            freq_resolution = self.outer.freq_resolution
-            dp = self.dp
-            freq, dfreq = convert_resolution(p,dp)
-            unresolved_p = p[dfreq <= freq_resolution]
-            if len(unresolved_p) > 0:
-                self.outer.plots.PSP_pg_lines2 = ax.plot(np.repeat(unresolved_p, 3), np.tile([0, 1, np.nan], len(unresolved_p)), color='darkviolet', alpha=1, lw=2, zorder=0, ls='-', transform=trans)
-            else:
-                # Reinitialize container
-                self.outer.plots.PSP_pg_lines2 = None
+    def add2pg(self):
+        # Clear plot if
+        if self.plots.PSP_pg_vline:
+            self.plots.PSP_pg_vline.remove()
+        # Clear plot if
+        if self.plots.PSP_pg_lines1:            
+            for line in self.plots.PSP_pg_lines1:
+                line.remove()
+        # Clear plot if
+        if self.plots.PSP_pg_lines2:            
+            for line in self.plots.PSP_pg_lines2:
+                line.remove()
                 
-        def add2dp(self):
-            # Clear plot if
-            if self.outer.plots.PSP_dp_lines:            
-                for line in self.outer.plots.PSP_dp_lines:
-                    line.remove()
-            if self.nr >= 2: # Ensure that there is at least two periods to the right
-                if self.outer.plots.PSP_dp_dot:            
-                    for line in self.outer.plots.PSP_dp_dot:
-                        line.remove()
+        ax = self.axs.pg
+        trans = tx.blended_transform_factory(ax.transData, ax.transAxes)
+        p = self.PSP.p
+        P0 = self.PSP.P0
+        self.plots.PSP_pg_lines1 = ax.plot(np.repeat(p, 3), np.tile([0, 1, np.nan], len(p)), color='r', alpha=0.3, lw=2, zorder=0, transform=trans)
+        # Overplot P0 with a different color
+        self.plots.PSP_pg_vline = ax.axvline(P0, color='gold', alpha=0.9, lw=2, zorder=0)
 
-            ax = self.outer.axs.dp
-            p = self.p
-            x = period_for_dP_plot(p, mode='middle')
-            y = np.diff(p)
-            self.outer.plots.PSP_dp_lines = ax.plot(x, y, lw=1, color='r', marker='*', ls='solid', zorder=1, alpha=0.5)
-            # self.outer.plots.PSP_echelle_scatter_3 = ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
-            # Overplot dp associated with P0 with a different color
-            if self.nr >= 1:
-                i = np.abs(self.p-self.P0).argmin()
-                period_pair = self.p[i:i+2]
-                x = period_for_dP_plot(period_pair, mode='middle')
-                y = np.diff(period_pair)
-                self.outer.plots.PSP_dp_dot = ax.plot(x, y, lw=1, color='gold', marker='*', ls='None', zorder=1, alpha=0.5)
+        # Unresolved frequencies
+        freq_resolution = self.freq_resolution
+        dp = self.PSP.dp
+        freq, dfreq = convert_resolution(p,dp)
+        unresolved_p = p[dfreq <= freq_resolution]
+        if len(unresolved_p) > 0:
+            self.plots.PSP_pg_lines2 = ax.plot(np.repeat(unresolved_p, 3), np.tile([0, 1, np.nan], len(unresolved_p)), color='darkviolet', alpha=1, lw=2, zorder=0, ls='-', transform=trans)
+        else:
+            # Reinitialize container
+            self.plots.PSP_pg_lines2 = None
+            
+    def add2dp(self):
+        # Clear plot if
+        if self.plots.PSP_dp_lines:            
+            for line in self.plots.PSP_dp_lines:
+                line.remove()
+        if self.PSP.nr >= 2: # Ensure that there is at least two periods to the right
+            if self.plots.PSP_dp_dot:            
+                for line in self.plots.PSP_dp_dot:
+                    line.remove()
+
+        ax = self.axs.dp
+        p = self.PSP.p
+        x = period_for_dP_plot(p, mode='middle')
+        y = np.diff(p)
+        self.plots.PSP_dp_lines = ax.plot(x, y, lw=1, color='r', marker='*', ls='solid', zorder=1, alpha=0.5)
+        # self.outer.plots.PSP_echelle_scatter_3 = ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
+        # Overplot dp associated with P0 with a different color
+        if self.PSP.nr >= 1:
+            i = np.abs(self.PSP.p-self.PSP.P0).argmin()
+            period_pair = self.PSP.p[i:i+2]
+            x = period_for_dP_plot(period_pair, mode='middle')
+            y = np.diff(period_pair)
+            self.plots.PSP_dp_dot = ax.plot(x, y, lw=1, color='gold', marker='*', ls='None', zorder=1, alpha=0.5)
+
+
+
+    # class LinearPSP(LinearPSP):
+    #     def __init__(self,outer,P0,dP0,Sigma=0,nr=5,nl=5):
+    #         LinearPSP.__init__(self,P0,dP0,Sigma,nr,nl)
+    #         self.outer = outer
+
+    #     def add2echelle(self):
+    #         # Clear plot if
+    #         if self.outer.plots.PSP_echelle_scatter_1:
+    #             self.outer.plots.PSP_echelle_scatter_1.remove()
+    #         if self.outer.plots.PSP_echelle_scatter_2:
+    #             self.outer.plots.PSP_echelle_scatter_2.remove()
+    #         if self.outer.plots.PSP_echelle_scatter_3:
+    #             self.outer.plots.PSP_echelle_scatter_3.remove()
+    #         ax = self.outer.axs.echelle
+    #         p = self.p
+    #         module_dp = self.outer.module_dp
+    #         color = 'r'
+    #         size = 30
+    #         self.outer.plots.PSP_echelle_scatter_1 = ax.scatter(p%module_dp-module_dp, p, s=size, color=color, zorder=3, picker=5)
+    #         self.outer.plots.PSP_echelle_scatter_2 = ax.scatter(p%module_dp+module_dp, p, s=size, color=color, zorder=3, picker=5)
+    #         self.outer.plots.PSP_echelle_scatter_3 = ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
+
+    #     def add2pg(self):
+    #         # Clear plot if
+    #         if self.outer.plots.PSP_pg_vline:
+    #             self.outer.plots.PSP_pg_vline.remove()
+    #         # Clear plot if
+    #         if self.outer.plots.PSP_pg_lines1:            
+    #             for line in self.outer.plots.PSP_pg_lines1:
+    #                 line.remove()
+    #         # Clear plot if
+    #         if self.outer.plots.PSP_pg_lines2:            
+    #             for line in self.outer.plots.PSP_pg_lines2:
+    #                 line.remove()
+                    
+    #         ax = self.outer.axs.pg
+    #         trans = tx.blended_transform_factory(ax.transData, ax.transAxes)
+    #         p = self.p
+    #         P0 = self.P0
+    #         self.outer.plots.PSP_pg_lines1 = ax.plot(np.repeat(p, 3), np.tile([0, 1, np.nan], len(p)), color='r', alpha=0.3, lw=2, zorder=0, transform=trans)
+    #         # Overplot P0 with a different color
+    #         self.outer.plots.PSP_pg_vline = ax.axvline(P0, color='gold', alpha=0.9, lw=2, zorder=0)
+
+    #         # Unresolved frequencies
+    #         freq_resolution = self.outer.freq_resolution
+    #         dp = self.dp
+    #         freq, dfreq = convert_resolution(p,dp)
+    #         unresolved_p = p[dfreq <= freq_resolution]
+    #         if len(unresolved_p) > 0:
+    #             self.outer.plots.PSP_pg_lines2 = ax.plot(np.repeat(unresolved_p, 3), np.tile([0, 1, np.nan], len(unresolved_p)), color='darkviolet', alpha=1, lw=2, zorder=0, ls='-', transform=trans)
+    #         else:
+    #             # Reinitialize container
+    #             self.outer.plots.PSP_pg_lines2 = None
+                
+    #     def add2dp(self):
+    #         # Clear plot if
+    #         if self.outer.plots.PSP_dp_lines:            
+    #             for line in self.outer.plots.PSP_dp_lines:
+    #                 line.remove()
+    #         if self.nr >= 2: # Ensure that there is at least two periods to the right
+    #             if self.outer.plots.PSP_dp_dot:            
+    #                 for line in self.outer.plots.PSP_dp_dot:
+    #                     line.remove()
+
+    #         ax = self.outer.axs.dp
+    #         p = self.p
+    #         x = period_for_dP_plot(p, mode='middle')
+    #         y = np.diff(p)
+    #         self.outer.plots.PSP_dp_lines = ax.plot(x, y, lw=1, color='r', marker='*', ls='solid', zorder=1, alpha=0.5)
+    #         # self.outer.plots.PSP_echelle_scatter_3 = ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
+    #         # Overplot dp associated with P0 with a different color
+    #         if self.nr >= 1:
+    #             i = np.abs(self.p-self.P0).argmin()
+    #             period_pair = self.p[i:i+2]
+    #             x = period_for_dP_plot(period_pair, mode='middle')
+    #             y = np.diff(period_pair)
+    #             self.outer.plots.PSP_dp_dot = ax.plot(x, y, lw=1, color='gold', marker='*', ls='None', zorder=1, alpha=0.5)
 
     def parse_pw(self):
         # Estimate a module dp
         self.module_dp = np.median(np.diff(self.pw.period.values))
         # Estimate a linear PSP of 10 periods around the dominant period 
         self.dominant_p = self.pw.query('ampl == ampl.max()').period.values.item()
-        self.PSP = self.LinearPSP(self,self.dominant_p,self.module_dp)
+        # self.PSP = self.LinearPSP(self,self.dominant_p,self.module_dp)
+        # self.PSP = self.LinearPSP(self.dominant_p,self.module_dp)
+        self.LinearPSP(self.dominant_p,self.module_dp)
     
-    def format(self):
+    def format(self, noSliders=False):
         """Format the layout by adding label and tweaks to the axes"""
         def fig_and_axs():
             
@@ -1847,21 +1830,73 @@ class IPlot:
             self.axs.Sigma.set_xlabel('$\Sigma$')
             self.axs.Sigma.set_ylabel('min $S$')
 
+
+            # Prune y axis pg and dp
+            locator=MaxNLocator(prune=None, nbins=4)
+            self.axs.pg.yaxis.set_major_locator(locator)
+            locator=MaxNLocator(prune='both', nbins=3)
+            self.axs.dp.yaxis.set_major_locator(locator)
+            # Prune x axis pg and dp
+            locator=MaxNLocator(prune='both', nbins=6)
+            self.axs.dp.xaxis.set_major_locator(locator)
+            # Prune echelle
+            locator=MaxNLocator(prune='both', nbins=5)
+            self.axs.echelle.xaxis.set_major_locator(locator)
+            locator=MaxNLocator(prune='both', nbins=5)
+            self.axs.echelle.yaxis.set_major_locator(locator)
+
+            # # Prune x axis Landspace
+            locator=MaxNLocator(prune='both', nbins=5)
+            self.axs.P0dP0.xaxis.set_major_locator(locator)
+            locator=MaxNLocator(prune='both', nbins=5)
+            self.axs.dP0Sigma.xaxis.set_major_locator(locator)
+            locator=MaxNLocator(prune='both', nbins=5)
+            self.axs.SigmaP0.xaxis.set_major_locator(locator)
+            locator=MaxNLocator(prune='both', nbins=5)
+            self.axs.P0.xaxis.set_major_locator(locator)
+            locator=MaxNLocator(prune='both', nbins=5)
+            self.axs.dP0.xaxis.set_major_locator(locator)
+            locator=MaxNLocator(prune='both', nbins=5)
+            self.axs.Sigma.xaxis.set_major_locator(locator)
+            # # Prune y axis Landspace
+            locator=MaxNLocator(prune='both', nbins=4)
+            self.axs.P0dP0.yaxis.set_major_locator(locator)
+            locator=MaxNLocator(prune='both', nbins=4)
+            self.axs.dP0Sigma.yaxis.set_major_locator(locator)
+            locator=MaxNLocator(prune='both', nbins=4)
+            self.axs.SigmaP0.yaxis.set_major_locator(locator)
+            locator=MaxNLocator(prune='upper', nbins=4)
+            self.axs.P0.yaxis.set_major_locator(locator)
+            locator=MaxNLocator(prune='upper', nbins=4)
+            self.axs.dP0.yaxis.set_major_locator(locator)
+            locator=MaxNLocator(prune='upper', nbins=4)
+            self.axs.Sigma.yaxis.set_major_locator(locator)
+
             # Visibility
             self.axs.allButtons.axis('off')
             self.axs.p.axis('off')
             self.axs.pg.get_xaxis().set_visible(False)
 
             # Color bars
+            locator=MaxNLocator(prune='both', nbins=5)
+            # P0dP0_cbar
             self.axs.P0dP0_cbar.xaxis.tick_top()
             self.axs.P0dP0_cbar.xaxis.set_label_position('top')
             self.axs.P0dP0_cbar.set_xlabel(f'log(S)')
+            self.axs.P0dP0_cbar.xaxis.set_major_locator(locator)
+            # dP0Sigma_cbar
             self.axs.dP0Sigma_cbar.xaxis.tick_top()
             self.axs.dP0Sigma_cbar.xaxis.set_label_position('top')
             self.axs.dP0Sigma_cbar.set_xlabel(f'log(S)')
+            self.axs.dP0Sigma_cbar.xaxis.set_major_locator(locator)
+            # SigmaP0_cbar
             self.axs.SigmaP0_cbar.xaxis.tick_top()
             self.axs.SigmaP0_cbar.xaxis.set_label_position('top')
             self.axs.SigmaP0_cbar.set_xlabel(f'log(S)')
+            self.axs.SigmaP0_cbar.xaxis.set_major_locator(locator)
+ 
+            # Title
+            self.axs.p.set_title(f'TIC {self.tic}', y=0.6)           
             
             # Ranges
             self.axs.p.set_ylim(0, 1)
@@ -1959,7 +1994,8 @@ class IPlot:
             apply_values(ax, slider, label, vmin, vmax, valinit, valfmt, facecolor, valstep)
             
         fig_and_axs()
-        sliders()
+        if not noSliders:
+            sliders()
         
     def layout(self):
         """Initizlize figure and axes as attributes"""
@@ -1974,6 +2010,7 @@ class IPlot:
 
             # Create axis grid
             main5Rows = fig.add_gridspec(5, 1, height_ratios=[1.0, 0.5, 0.5, 0.2, 0.5], hspace=0.0)
+            main5Rows.update(left=0.05,right=0.98,top=0.9,bottom=0.03)
 
             # Row 0: Period indicator on top of pg (P), pg, dP, echelle 
             mainRow0_main2Cols = main5Rows[0].subgridspec(1, 2, width_ratios=[3, 1.2], wspace=0.2)
@@ -2024,7 +2061,7 @@ class IPlot:
             height = 0.01
             width = 0.775
             x0 = 0.125
-            y0 = 0.81
+            y0 = 0.925 #0.81
             hspacing = 0.015
             # Number of sliders
             nSliders = 5
@@ -2086,7 +2123,7 @@ class IPlot:
             self.axs.buttons.fit.on_clicked(self.fitPSP)
 
             xpos = button_x0+0*(width+dwidth)
-            self.axs.buttons.explore = Button(plt.axes([xpos, ypos-height, width, height]), 'Explore result')  # <<--------------|
+            self.axs.buttons.explore = Button(plt.axes([xpos, ypos-height, width, height]), 'Explore')  # <<--------------|
             self.axs.buttons.explore.on_clicked(self.explore_results)
 
             xpos = button_x0+1*(width+dwidth)
@@ -2097,17 +2134,21 @@ class IPlot:
             self.buttons = Buttons()
             self.textBoxes = Boxes()
             
+            yText = -1.5
+            sizeText = 11
+            
             # Textbox for mismatch
             # xpos = button_x0+2*(width+dwidth)
             # self.axs.textBoxes.mismatch = plt.axes([xpos, ypos, width, height])
             # self.textBoxes.mismatch = TextBox(self.axs.textBoxes.mismatch, "", initial='0', color='lightgoldenrodyellow')
-            # self.axs.textBoxes.mismatch.set_title('Mismatch', y=-1.0)
+            # self.axs.textBoxes.mismatch.set_title('Mismatch', y=yText, size=sizeText)
 
             # Textbox for residuals
             xpos = button_x0+3*(width+dwidth)
             self.axs.textBoxes.residuals = plt.axes([xpos, ypos, width, height])
             self.textBoxes.residuals = TextBox(self.axs.textBoxes.residuals, "", initial='0', color='lightgoldenrodyellow')
-            self.axs.textBoxes.residuals.set_title('Residuals (d)', y=-1.0)
+            self.axs.textBoxes.residuals.set_title('Residuals (d)', y=yText, size=sizeText)
+
 
             # Todo: Find out why the plot responds faster without this
             if self.extra_textBoxes:
@@ -2115,20 +2156,20 @@ class IPlot:
                 xpos = button_x0+4*(width+dwidth)
                 self.axs.textBoxes.P0 = self.fig.add_axes([xpos, ypos, width, height])
                 self.textBoxes.P0 = TextBox(self.axs.textBoxes.P0, "", initial='0')
-                self.connections.append(self.textBoxes.P0.on_submit(read_box_P0))
-                self.axs.textBoxes.P0.set_title('$P_0$ (d)', y=-1.0)
+                self.connections_textBoxes.append(self.textBoxes.P0.on_submit(self.read_box_P0))
+                self.axs.textBoxes.P0.set_title('$P_0$ (d)', y=yText, size=sizeText)
                 # Textbox for dP0
                 xpos = button_x0+5*(width+dwidth)
                 self.axs.textBoxes.dP0 = self.fig.add_axes([xpos, ypos, width, height])
                 self.textBoxes.dP0 = TextBox(self.axs.textBoxes.dP0, "", initial='0')
-                self.connections.append(self.textBoxes.dP0.on_submit(read_box_dP0))
-                self.axs.textBoxes.dP0.set_title('$\Delta P_0$ (d)', y=-1.0)
+                self.connections_textBoxes.append(self.textBoxes.dP0.on_submit(self.read_box_dP0)) # TODO: Save connection id to later close it
+                self.axs.textBoxes.dP0.set_title('$\Delta P_0$ (d)', y=yText, size=sizeText)
                 # Textbox for Sigma
                 xpos = button_x0+6*(width+dwidth)
                 self.axs.textBoxes.Sigma = self.fig.add_axes([xpos, ypos, width, height])
                 self.textBoxes.Sigma = TextBox(self.axs.textBoxes.Sigma, "", initial='0')
-                self.connections.append(self.textBoxes.Sigma.on_submit(read_box_Sigma))
-                self.axs.textBoxes.Sigma.set_title('$\Sigma$', y=-1.0)
+                self.connections_textBoxes.append(self.textBoxes.Sigma.on_submit(self.read_box_Sigma))
+                self.axs.textBoxes.Sigma.set_title('$\Sigma$', y=yText, size=sizeText)
             
             
             
@@ -2159,14 +2200,8 @@ class IPlot:
         x = self.pg.period
         y = self.pg.ampl
         ax.plot(x, y, lw=1, color='k', zorder=3)
-        # # Plotted range
-        # pmin = self.pg.period.min()
-        # pmax = self.pg.period.max()
-        # _, pmin_resolution = convert_resolution(1/pmin, self.freq_resolution)
-        # _, pmax_resolution = convert_resolution(1/pmax, self.freq_resolution)
-        # xlim1 = self.pw.period.min()-pmin_resolution
-        # xlim2 = self.pw.period.max()+pmax_resolution
-        # ax.set_xlim(xlim1, xlim2)
+        # Mark level zero
+        ax.axhline(0, ls='-', lw=0.5, color='gray') 
         
     def add_p2pg(self, pw=None):
         if pw is None:
@@ -2274,7 +2309,6 @@ if __name__ == '__main__':
     # with IPlot(pw=userData.pw.data, pg=userData.pg.data, freq_resolution=userData.freq_resolution):
     #     plt.show()
     
-    # TODO: Activate buutons in the figure :-)
     
     print(333)
 

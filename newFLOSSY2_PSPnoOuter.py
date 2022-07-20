@@ -856,7 +856,7 @@ class GoodnesFit:
     residuals = -1
     opt = None
 
-# @jitclass
+@jitclass
 class IPlot:
     """Class to handle the interactive plot"""
 
@@ -1728,92 +1728,187 @@ class IPlot:
         self.sliders.dP0.on_changed(self.sliderAction_dP0)
         self.sliders.Sigma.on_changed(self.sliderAction_Sigma)
 
+    def LinearPSP(self,P0,dP0,Sigma=0,nr=5,nl=5) -> None:
+        
+        class PSPspace:
+            pass
+        
+        self.PSP= PSPspace()
+        self.PSP.P0 = P0
+        self.PSP.dP0 = dP0
+        self.PSP.Sigma = Sigma
+        self.PSP.nr = nr
+        self.PSP.nl = nl
+        self.PSP.generatePSP = self.generatePSP
+        self.PSP.add2pg = self.add2pg
+        self.PSP.add2dp = self.add2dp
+        self.PSP.add2echelle = self.add2echelle
+        self.PSP.generatePSP()
+        
+    def generatePSP(self):
+        self.PSP.p, self.PSP.dp = pattern_period(self.PSP.P0,self.PSP.dP0,self.PSP.Sigma,self.PSP.nr,self.PSP.nl)
 
+    def add2echelle(self):
+        # Clear plot if
+        if self.plots.PSP_echelle_scatter_1:
+            self.plots.PSP_echelle_scatter_1.remove()
+        if self.plots.PSP_echelle_scatter_2:
+            self.plots.PSP_echelle_scatter_2.remove()
+        if self.plots.PSP_echelle_scatter_3:
+            self.plots.PSP_echelle_scatter_3.remove()
+        ax = self.axs.echelle
+        p = self.PSP.p
+        module_dp = self.module_dp
+        color = 'r'
+        size = 30
+        self.plots.PSP_echelle_scatter_1 = ax.scatter(p%module_dp-module_dp, p, s=size, color=color, zorder=3, picker=5)
+        self.plots.PSP_echelle_scatter_2 = ax.scatter(p%module_dp+module_dp, p, s=size, color=color, zorder=3, picker=5)
+        self.plots.PSP_echelle_scatter_3 = ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
 
-    class LinearPSP(LinearPSP):
-        def __init__(self,outer,P0,dP0,Sigma=0,nr=5,nl=5):
-            LinearPSP.__init__(self,P0,dP0,Sigma,nr,nl)
-            self.outer = outer
-
-        def add2echelle(self):
-            # Clear plot if
-            if self.outer.plots.PSP_echelle_scatter_1:
-                self.outer.plots.PSP_echelle_scatter_1.remove()
-            if self.outer.plots.PSP_echelle_scatter_2:
-                self.outer.plots.PSP_echelle_scatter_2.remove()
-            if self.outer.plots.PSP_echelle_scatter_3:
-                self.outer.plots.PSP_echelle_scatter_3.remove()
-            ax = self.outer.axs.echelle
-            p = self.p
-            module_dp = self.outer.module_dp
-            color = 'r'
-            size = 30
-            self.outer.plots.PSP_echelle_scatter_1 = ax.scatter(p%module_dp-module_dp, p, s=size, color=color, zorder=3, picker=5)
-            self.outer.plots.PSP_echelle_scatter_2 = ax.scatter(p%module_dp+module_dp, p, s=size, color=color, zorder=3, picker=5)
-            self.outer.plots.PSP_echelle_scatter_3 = ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
-
-        def add2pg(self):
-            # Clear plot if
-            if self.outer.plots.PSP_pg_vline:
-                self.outer.plots.PSP_pg_vline.remove()
-            # Clear plot if
-            if self.outer.plots.PSP_pg_lines1:            
-                for line in self.outer.plots.PSP_pg_lines1:
-                    line.remove()
-            # Clear plot if
-            if self.outer.plots.PSP_pg_lines2:            
-                for line in self.outer.plots.PSP_pg_lines2:
-                    line.remove()
-                    
-            ax = self.outer.axs.pg
-            trans = tx.blended_transform_factory(ax.transData, ax.transAxes)
-            p = self.p
-            P0 = self.P0
-            self.outer.plots.PSP_pg_lines1 = ax.plot(np.repeat(p, 3), np.tile([0, 1, np.nan], len(p)), color='r', alpha=0.3, lw=2, zorder=0, transform=trans)
-            # Overplot P0 with a different color
-            self.outer.plots.PSP_pg_vline = ax.axvline(P0, color='gold', alpha=0.9, lw=2, zorder=0)
-
-            # Unresolved frequencies
-            freq_resolution = self.outer.freq_resolution
-            dp = self.dp
-            freq, dfreq = convert_resolution(p,dp)
-            unresolved_p = p[dfreq <= freq_resolution]
-            if len(unresolved_p) > 0:
-                self.outer.plots.PSP_pg_lines2 = ax.plot(np.repeat(unresolved_p, 3), np.tile([0, 1, np.nan], len(unresolved_p)), color='darkviolet', alpha=1, lw=2, zorder=0, ls='-', transform=trans)
-            else:
-                # Reinitialize container
-                self.outer.plots.PSP_pg_lines2 = None
+    def add2pg(self):
+        # Clear plot if
+        if self.plots.PSP_pg_vline:
+            self.plots.PSP_pg_vline.remove()
+        # Clear plot if
+        if self.plots.PSP_pg_lines1:            
+            for line in self.plots.PSP_pg_lines1:
+                line.remove()
+        # Clear plot if
+        if self.plots.PSP_pg_lines2:            
+            for line in self.plots.PSP_pg_lines2:
+                line.remove()
                 
-        def add2dp(self):
-            # Clear plot if
-            if self.outer.plots.PSP_dp_lines:            
-                for line in self.outer.plots.PSP_dp_lines:
-                    line.remove()
-            if self.nr >= 2: # Ensure that there is at least two periods to the right
-                if self.outer.plots.PSP_dp_dot:            
-                    for line in self.outer.plots.PSP_dp_dot:
-                        line.remove()
+        ax = self.axs.pg
+        trans = tx.blended_transform_factory(ax.transData, ax.transAxes)
+        p = self.PSP.p
+        P0 = self.PSP.P0
+        self.plots.PSP_pg_lines1 = ax.plot(np.repeat(p, 3), np.tile([0, 1, np.nan], len(p)), color='r', alpha=0.3, lw=2, zorder=0, transform=trans)
+        # Overplot P0 with a different color
+        self.plots.PSP_pg_vline = ax.axvline(P0, color='gold', alpha=0.9, lw=2, zorder=0)
 
-            ax = self.outer.axs.dp
-            p = self.p
-            x = period_for_dP_plot(p, mode='middle')
-            y = np.diff(p)
-            self.outer.plots.PSP_dp_lines = ax.plot(x, y, lw=1, color='r', marker='*', ls='solid', zorder=1, alpha=0.5)
-            # self.outer.plots.PSP_echelle_scatter_3 = ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
-            # Overplot dp associated with P0 with a different color
-            if self.nr >= 1:
-                i = np.abs(self.p-self.P0).argmin()
-                period_pair = self.p[i:i+2]
-                x = period_for_dP_plot(period_pair, mode='middle')
-                y = np.diff(period_pair)
-                self.outer.plots.PSP_dp_dot = ax.plot(x, y, lw=1, color='gold', marker='*', ls='None', zorder=1, alpha=0.5)
+        # Unresolved frequencies
+        freq_resolution = self.freq_resolution
+        dp = self.PSP.dp
+        freq, dfreq = convert_resolution(p,dp)
+        unresolved_p = p[dfreq <= freq_resolution]
+        if len(unresolved_p) > 0:
+            self.plots.PSP_pg_lines2 = ax.plot(np.repeat(unresolved_p, 3), np.tile([0, 1, np.nan], len(unresolved_p)), color='darkviolet', alpha=1, lw=2, zorder=0, ls='-', transform=trans)
+        else:
+            # Reinitialize container
+            self.plots.PSP_pg_lines2 = None
+            
+    def add2dp(self):
+        # Clear plot if
+        if self.plots.PSP_dp_lines:            
+            for line in self.plots.PSP_dp_lines:
+                line.remove()
+        if self.PSP.nr >= 2: # Ensure that there is at least two periods to the right
+            if self.plots.PSP_dp_dot:            
+                for line in self.plots.PSP_dp_dot:
+                    line.remove()
+
+        ax = self.axs.dp
+        p = self.PSP.p
+        x = period_for_dP_plot(p, mode='middle')
+        y = np.diff(p)
+        self.plots.PSP_dp_lines = ax.plot(x, y, lw=1, color='r', marker='*', ls='solid', zorder=1, alpha=0.5)
+        # self.outer.plots.PSP_echelle_scatter_3 = ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
+        # Overplot dp associated with P0 with a different color
+        if self.PSP.nr >= 1:
+            i = np.abs(self.PSP.p-self.PSP.P0).argmin()
+            period_pair = self.PSP.p[i:i+2]
+            x = period_for_dP_plot(period_pair, mode='middle')
+            y = np.diff(period_pair)
+            self.plots.PSP_dp_dot = ax.plot(x, y, lw=1, color='gold', marker='*', ls='None', zorder=1, alpha=0.5)
+
+
+
+    # class LinearPSP(LinearPSP):
+    #     def __init__(self,outer,P0,dP0,Sigma=0,nr=5,nl=5):
+    #         LinearPSP.__init__(self,P0,dP0,Sigma,nr,nl)
+    #         self.outer = outer
+
+    #     def add2echelle(self):
+    #         # Clear plot if
+    #         if self.outer.plots.PSP_echelle_scatter_1:
+    #             self.outer.plots.PSP_echelle_scatter_1.remove()
+    #         if self.outer.plots.PSP_echelle_scatter_2:
+    #             self.outer.plots.PSP_echelle_scatter_2.remove()
+    #         if self.outer.plots.PSP_echelle_scatter_3:
+    #             self.outer.plots.PSP_echelle_scatter_3.remove()
+    #         ax = self.outer.axs.echelle
+    #         p = self.p
+    #         module_dp = self.outer.module_dp
+    #         color = 'r'
+    #         size = 30
+    #         self.outer.plots.PSP_echelle_scatter_1 = ax.scatter(p%module_dp-module_dp, p, s=size, color=color, zorder=3, picker=5)
+    #         self.outer.plots.PSP_echelle_scatter_2 = ax.scatter(p%module_dp+module_dp, p, s=size, color=color, zorder=3, picker=5)
+    #         self.outer.plots.PSP_echelle_scatter_3 = ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
+
+    #     def add2pg(self):
+    #         # Clear plot if
+    #         if self.outer.plots.PSP_pg_vline:
+    #             self.outer.plots.PSP_pg_vline.remove()
+    #         # Clear plot if
+    #         if self.outer.plots.PSP_pg_lines1:            
+    #             for line in self.outer.plots.PSP_pg_lines1:
+    #                 line.remove()
+    #         # Clear plot if
+    #         if self.outer.plots.PSP_pg_lines2:            
+    #             for line in self.outer.plots.PSP_pg_lines2:
+    #                 line.remove()
+                    
+    #         ax = self.outer.axs.pg
+    #         trans = tx.blended_transform_factory(ax.transData, ax.transAxes)
+    #         p = self.p
+    #         P0 = self.P0
+    #         self.outer.plots.PSP_pg_lines1 = ax.plot(np.repeat(p, 3), np.tile([0, 1, np.nan], len(p)), color='r', alpha=0.3, lw=2, zorder=0, transform=trans)
+    #         # Overplot P0 with a different color
+    #         self.outer.plots.PSP_pg_vline = ax.axvline(P0, color='gold', alpha=0.9, lw=2, zorder=0)
+
+    #         # Unresolved frequencies
+    #         freq_resolution = self.outer.freq_resolution
+    #         dp = self.dp
+    #         freq, dfreq = convert_resolution(p,dp)
+    #         unresolved_p = p[dfreq <= freq_resolution]
+    #         if len(unresolved_p) > 0:
+    #             self.outer.plots.PSP_pg_lines2 = ax.plot(np.repeat(unresolved_p, 3), np.tile([0, 1, np.nan], len(unresolved_p)), color='darkviolet', alpha=1, lw=2, zorder=0, ls='-', transform=trans)
+    #         else:
+    #             # Reinitialize container
+    #             self.outer.plots.PSP_pg_lines2 = None
+                
+    #     def add2dp(self):
+    #         # Clear plot if
+    #         if self.outer.plots.PSP_dp_lines:            
+    #             for line in self.outer.plots.PSP_dp_lines:
+    #                 line.remove()
+    #         if self.nr >= 2: # Ensure that there is at least two periods to the right
+    #             if self.outer.plots.PSP_dp_dot:            
+    #                 for line in self.outer.plots.PSP_dp_dot:
+    #                     line.remove()
+
+    #         ax = self.outer.axs.dp
+    #         p = self.p
+    #         x = period_for_dP_plot(p, mode='middle')
+    #         y = np.diff(p)
+    #         self.outer.plots.PSP_dp_lines = ax.plot(x, y, lw=1, color='r', marker='*', ls='solid', zorder=1, alpha=0.5)
+    #         # self.outer.plots.PSP_echelle_scatter_3 = ax.scatter(p%module_dp, p, s=size, color=color, zorder=3, picker=5)
+    #         # Overplot dp associated with P0 with a different color
+    #         if self.nr >= 1:
+    #             i = np.abs(self.p-self.P0).argmin()
+    #             period_pair = self.p[i:i+2]
+    #             x = period_for_dP_plot(period_pair, mode='middle')
+    #             y = np.diff(period_pair)
+    #             self.outer.plots.PSP_dp_dot = ax.plot(x, y, lw=1, color='gold', marker='*', ls='None', zorder=1, alpha=0.5)
 
     def parse_pw(self):
         # Estimate a module dp
         self.module_dp = np.median(np.diff(self.pw.period.values))
         # Estimate a linear PSP of 10 periods around the dominant period 
         self.dominant_p = self.pw.query('ampl == ampl.max()').period.values.item()
-        self.PSP = self.LinearPSP(self,self.dominant_p,self.module_dp)
+        # self.PSP = self.LinearPSP(self,self.dominant_p,self.module_dp)
+        # self.PSP = self.LinearPSP(self.dominant_p,self.module_dp)
+        self.LinearPSP(self.dominant_p,self.module_dp)
     
     def format(self):
         """Format the layout by adding label and tweaks to the axes"""
